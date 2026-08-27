@@ -1,0 +1,50 @@
+-- Departments
+INSERT INTO departments VALUES
+(1,'HR','Mumbai'),
+(2,'IT','Pune'),
+(3,'Finance','Delhi'),
+(4,'Sales','Bangalore');
+
+-- Employees
+INSERT INTO employees VALUES
+(101,'Amit Sharma',2,NULL,90000,'2022-01-10','IT Manager'),
+(102,'Priya Patel',2,101,60000,'2023-05-15','Developer'),
+(103,'Rahul Verma',3,NULL,85000,'2021-08-20','Finance Manager'),
+(104,'Neha Singh',3,103,55000,'2024-02-11','Accountant'),
+(105,'Arjun Rao',4,NULL,95000,'2020-11-05','Sales Manager'),
+(106,'Kavya Nair',4,105,50000,'2023-07-01','Sales Executive');
+
+-- Customers
+INSERT INTO customers VALUES
+(201,'Ramesh Kumar','Mumbai','Maharashtra','India','Consumer','2023-01-05',106),
+(202,'Sita Sharma','Delhi','Delhi','India','Corporate','2023-02-10',106),
+(203,'John Smith','New York','NY','USA','Consumer','2023-03-15',106),
+(204,'Alice Brown','Chicago','IL','USA','Corporate','2023-04-20',106),
+(205,'David Lee','Toronto','Ontario','Canada','Consumer','2023-06-01',NULL);
+
+-- Products
+INSERT INTO products VALUES
+(301,'Laptop','Electronics','Computers',60000,45000,NULL),
+(302,'Smartphone','Electronics','Mobile',30000,22000,NULL),
+(303,'Office Chair','Furniture','Chair',7000,4000,NULL),
+(304,'Desk','Furniture','Table',12000,7000,NULL),
+(305,'Printer','Electronics','Accessories',15000,10000,NULL);
+
+-- Orders
+INSERT INTO orders VALUES
+(401,201,106,'2025-01-10','Completed','2025-01-12'),
+(402,202,106,'2025-01-15','Completed','2025-01-17'),
+(403,203,106,'2025-02-01','Pending',NULL),
+(404,201,106,'2025-02-10','Completed','2025-02-13'),
+(405,204,106,'2025-03-05','Completed','2025-03-06');
+
+-- Order Items
+INSERT INTO order_items VALUES
+(501,401,301,1,60000,10),
+(502,401,305,2,15000,5),
+(503,402,302,1,30000,0),
+(504,402,303,4,7000,10),
+(505,403,304,1,12000,0),
+(506,404,302,2,30000,5),
+(507,405,301,1,60000,15),
+(508,405,303,3,7000,0);
