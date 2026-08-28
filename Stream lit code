@@ -1,0 +1,313 @@
+import streamlit as st
+import pandas as pd
+from snowflake.snowpark.context import get_active_session
+
+# ----------------------------------
+# Page Configuration
+# ----------------------------------
+st.set_page_config(
+    page_title="Logistics Dashboard",
+    layout="wide"
+)
+
+st.title("🚚 Logistics Delivery Dashboard")
+
+# ----------------------------------
+# Snowflake Session
+# ----------------------------------
+session = get_active_session()
+
+# ----------------------------------
+# Load Data
+# ----------------------------------
+query = """
+SELECT
+    ORDER_ID,
+    ORDER_DATE,
+    CITY,
+    VEHICLE_TYPE,
+    DISTANCE_KM,
+    DELIVERY_TIME_MIN,
+    IS_ONTIME,
+    DRIVER_RATING
+FROM LOGISTICS_LAB.DATA.DELIVERIES
+"""
+
+try:
+    df = session.sql(query).to_pandas()
+except Exception as e:
+    st.error("Unable to load data from Snowflake.")
+    st.code(str(e))
+    st.stop()
+
+# ----------------------------------
+# Clean Column Names
+# ----------------------------------
+df.columns = df.columns.str.upper()
+
+# ----------------------------------
+# Convert Date
+# ----------------------------------
+df["ORDER_DATE"] = pd.to_datetime(
+    df["ORDER_DATE"],
+    errors="coerce"
+)
+
+# ----------------------------------
+# Filters
+# ----------------------------------
+st.sidebar.header("🔎 Filters")
+
+# City filter
+cities = sorted(
+    df["CITY"].dropna().unique().tolist()
+)
+
+city_filter = st.sidebar.multiselect(
+    "Select City",
+    options=cities,
+    default=cities
+)
+
+# Vehicle filter
+vehicles = sorted(
+    df["VEHICLE_TYPE"].dropna().unique().tolist()
+)
+
+vehicle_filter = st.sidebar.multiselect(
+    "Select Vehicle Type",
+    options=vehicles,
+    default=vehicles
+)
+
+# ----------------------------------
+# Apply Filters
+# ----------------------------------
+filtered_df = df[
+    df["CITY"].isin(city_filter)
+    &
+    df["VEHICLE_TYPE"].isin(vehicle_filter)
+].copy()
+
+# ----------------------------------
+# Check Empty Data
+# ----------------------------------
+if filtered_df.empty:
+    st.warning("No data available for the selected filters.")
+    st.stop()
+
+# ----------------------------------
+# On-Time Calculation
+# ----------------------------------
+# Handles both TRUE/FALSE and Yes/No formats
+
+def calculate_ontime(value):
+    if pd.isna(value):
+        return False
+
+    value = str(value).strip().lower()
+
+    return value in ["true", "yes", "1", "y"]
+
+
+filtered_df["ONTIME_FLAG"] = (
+    filtered_df["IS_ONTIME"]
+    .apply(calculate_ontime)
+)
+
+# ----------------------------------
+# KPIs
+# ----------------------------------
+total_orders = len(filtered_df)
+
+ontime_percentage = (
+    filtered_df["ONTIME_FLAG"].mean() * 100
+)
+
+avg_delivery_time = (
+    filtered_df["DELIVERY_TIME_MIN"].mean()
+)
+
+avg_rating = (
+    filtered_df["DRIVER_RATING"].mean()
+)
+
+# ----------------------------------
+# KPI Display
+# ----------------------------------
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Total Orders",
+        f"{total_orders:,}"
+    )
+
+with col2:
+    st.metric(
+        "On-Time Delivery",
+        f"{ontime_percentage:.1f}%"
+    )
+
+with col3:
+    st.metric(
+        "Avg Delivery Time",
+        f"{avg_delivery_time:.1f} min"
+    )
+
+with col4:
+    st.metric(
+        "Avg Driver Rating",
+        f"{avg_rating:.1f} ⭐"
+    )
+
+st.divider()
+
+# ----------------------------------
+# Delivery Performance by City
+# ----------------------------------
+col1, col2 = st.columns(2)
+
+# Deliveries by City
+with col1:
+
+    st.subheader("🚚 Deliveries by City")
+
+    city_deliveries = (
+        filtered_df
+        .groupby("CITY")
+        .size()
+        .sort_values(ascending=False)
+    )
+
+    st.bar_chart(city_deliveries)
+
+
+# Average Delivery Time by City
+with col2:
+
+    st.subheader("⏱️ Average Delivery Time by City")
+
+    city_time = (
+        filtered_df
+        .groupby("CITY")["DELIVERY_TIME_MIN"]
+        .mean()
+        .round(1)
+        .sort_values()
+    )
+
+    st.bar_chart(city_time)
+
+# ----------------------------------
+# Vehicle Performance
+# ----------------------------------
+st.subheader("🚗 Vehicle Performance")
+
+vehicle_performance = (
+    filtered_df
+    .groupby("VEHICLE_TYPE")
+    .agg(
+        AVG_DELIVERY_TIME=("DELIVERY_TIME_MIN", "mean"),
+        AVG_DISTANCE=("DISTANCE_KM", "mean"),
+        AVG_RATING=("DRIVER_RATING", "mean")
+    )
+    .round(1)
+)
+
+st.dataframe(
+    vehicle_performance,
+    use_container_width=True
+)
+
+# ----------------------------------
+# On-Time Delivery by City
+# ----------------------------------
+st.subheader("📍 On-Time Delivery by City")
+
+city_ontime = (
+    filtered_df
+    .groupby("CITY")["ONTIME_FLAG"]
+    .mean()
+    .mul(100)
+    .round(1)
+    .sort_values(ascending=False)
+)
+
+st.bar_chart(city_ontime)
+
+# ----------------------------------
+# Daily Delivery Volume
+# ----------------------------------
+st.subheader("📅 Daily Delivery Volume")
+
+daily_delivery = (
+    filtered_df
+    .groupby("ORDER_DATE")
+    .size()
+    .reset_index(name="DELIVERIES")
+    .sort_values("ORDER_DATE")
+)
+
+st.line_chart(
+    daily_delivery,
+    x="ORDER_DATE",
+    y="DELIVERIES"
+)
+
+# ----------------------------------
+# Distance vs Delivery Time
+# ----------------------------------
+st.subheader("🛣️ Distance vs Delivery Time")
+
+distance_time = filtered_df[
+    [
+        "DISTANCE_KM",
+        "DELIVERY_TIME_MIN"
+    ]
+].dropna()
+
+st.scatter_chart(
+    distance_time,
+    x="DISTANCE_KM",
+    y="DELIVERY_TIME_MIN"
+)
+
+# ----------------------------------
+# Top 10 Best Rated Deliveries
+# ----------------------------------
+st.subheader("🏆 Top 10 Best Rated Deliveries")
+
+top_rated = (
+    filtered_df[
+        [
+            "ORDER_ID",
+            "DRIVER_RATING",
+            "CITY",
+            "VEHICLE_TYPE",
+            "IS_ONTIME"
+        ]
+    ]
+    .sort_values(
+        "DRIVER_RATING",
+        ascending=False
+    )
+    .head(10)
+)
+
+st.dataframe(
+    top_rated,
+    use_container_width=True
+)
+
+# ----------------------------------
+# Delivery Details
+# ----------------------------------
+st.subheader("📋 Delivery Details")
+
+st.dataframe(
+    filtered_df.drop(
+        columns=["ONTIME_FLAG"],
+        errors="ignore"
+    ),
+    use_container_width=True
+)
