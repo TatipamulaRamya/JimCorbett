@@ -1,0 +1,92 @@
+CREATE TABLE Employees (
+    EmployeeID INT,
+    EmployeeName VARCHAR(50),
+    Department VARCHAR(30),
+    Salary INT,
+    SalesAmount INT
+);
+
+INSERT INTO Employees VALUES
+(101,'Ram','Sales',50000,90000),
+(102,'Shyam','Sales',55000,70000),
+(103,'Priya','Marketing',60000,40000),
+(104,'Anita','Marketing',65000,85000),
+(105,'Karan','Sales',70000,30000);
+--Demo 1: CASE Expression (Employee Performance Rating)
+SELECT
+    EmployeeID,
+    EmployeeName,
+    SalesAmount,
+    CASE
+        WHEN SalesAmount >= 80000 THEN 'Excellent'
+        WHEN SalesAmount >= 50000 THEN 'Good'
+        ELSE 'Needs Improvement'
+    END AS Performance_Rating
+FROM Employees;
+--Demo 2: CASE Expression for Salary Hike
+SELECT
+    EmployeeName,
+    Salary,
+    CASE
+        WHEN Salary >= 65000 THEN Salary * 0.15
+        WHEN Salary >= 55000 THEN Salary * 0.10
+        ELSE Salary * 0.05
+    END AS Bonus
+FROM Employees;
+--To find employees earning above department average(Problem without cte)
+SELECT e.EmployeeName,
+       e.Department,
+       e.Salary
+FROM Employees e
+JOIN
+(
+    SELECT Department,
+           AVG(Salary) AS AvgSalary
+    FROM Employees
+    GROUP BY Department
+) d
+ON e.Department = d.Department
+WHERE e.Salary > d.AvgSalary;
+--Same Problem Using CTE
+WITH DepartmentAverage AS
+(
+    SELECT
+        Department,
+        AVG(Salary) AS AvgSalary
+    FROM Employees
+    GROUP BY Department
+)
+
+SELECT
+    e.EmployeeName,
+    e.Department,
+    e.Salary,
+    d.AvgSalary
+FROM Employees e
+JOIN DepartmentAverage d
+ON e.Department = d.Department
+WHERE e.Salary > d.AvgSalary;
+--Multiple cte
+WITH AvgSalary AS
+(
+    SELECT Department,
+           AVG(Salary) Avg_Salary
+    FROM Employees
+    GROUP BY Department
+),
+
+MaxSalary AS
+(
+    SELECT Department,
+           MAX(Salary) Max_Salary
+    FROM Employees
+    GROUP BY Department
+)
+
+SELECT
+    a.Department,
+    a.Avg_Salary,
+    m.Max_Salary
+FROM AvgSalary a
+JOIN MaxSalary m
+ON a.Department = m.Department;
