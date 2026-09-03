@@ -1,0 +1,161 @@
+#SQL Practical Demo: CASE Expression & CTE
+CREATE TABLE Employees (
+    employee_id INT,
+    employee_name VARCHAR(50),
+    department VARCHAR(50),
+    salary DECIMAL(10,2),
+    performance_score INT
+);
+
+INSERT INTO Employees
+(employee_id, employee_name, department, salary, performance_score)
+VALUES
+(1, 'Rahul', 'IT', 75000, 90),
+(2, 'Priya', 'HR', 55000, 75),
+(3, 'Arun', 'IT', 45000, 60),
+(4, 'Sneha', 'Finance', 85000, 95),
+(5, 'Kiran', 'HR', 40000, 50),
+(6, 'Anjali', 'Finance', 65000, 80),
+(7, 'Vijay', 'IT', 95000, 88),
+(8, 'Meena', 'HR', 70000, 92);
+
+'''PART 1 — CASE EXPRESSION
+Syntax:
+CASE
+    WHEN condition1 THEN result1
+    WHEN condition2 THEN result2
+    WHEN condition3 THEN result3
+    ELSE result
+END'''
+
+
+#Example 1:
+SELECT
+    employee_name,
+    salary,
+    CASE
+        WHEN salary >= 80000 THEN 'High Salary'
+        WHEN salary >= 60000 THEN 'Medium Salary'
+        ELSE 'Low Salary'
+    END AS salary_category
+FROM Employees;
+
+#Example 2:
+SELECT
+    employee_name,
+    salary,
+    performance_score,
+    CASE
+        WHEN salary >= 70000 AND performance_score >= 85
+            THEN 'Top Performer'
+        ELSE 'Regular Performer'
+    END AS employee_category
+FROM Employees;
+
+'''PART 2 — CTE
+SYNTAX:
+WITH cte_name AS
+(
+    SELECT ...
+    FROM ...
+)
+SELECT *
+FROM cte_name;'''
+#Example:
+WITH Department_Salary AS
+(
+    SELECT
+        department,
+        AVG(salary) AS average_salary
+    FROM Employees
+    GROUP BY department
+)
+SELECT
+    department,
+    average_salary
+FROM Department_Salary
+WHERE average_salary > 60000;
+
+#PART 3 — CASE + CTE TOGETHER
+WITH Department_Salary AS
+(
+    SELECT
+        department,
+        AVG(salary) AS average_salary
+    FROM Employees
+    GROUP BY department
+)
+SELECT
+    department,
+    average_salary,
+    CASE
+        WHEN average_salary >= 75000 THEN 'High Paying'
+        WHEN average_salary >= 60000 THEN 'Medium Paying'
+        ELSE 'Low Paying'
+    END AS salary_category
+FROM Department_Salary;
+
+#QUIZ:
+#Question 1 — Predict the Output
+SELECT
+    employee_name,
+    performance_score,
+    CASE
+        WHEN performance_score >= 90 THEN 'A'
+        WHEN performance_score >= 75 THEN 'B'
+        WHEN performance_score >= 60 THEN 'C'
+        ELSE 'D'
+    END AS grade
+FROM Employees
+WHERE employee_name IN ('Rahul', 'Priya', 'Kiran');
+'''ANSWER :
+Employee	Score	Grade
+Rahul	90	A
+Priya	75	B
+Kiran	50	D'''
+
+#Question 2 — Will This Work?
+WITH Department_Salary AS
+(
+    SELECT
+        department,
+        AVG(salary) AS average_salary
+    FROM Employees
+    GROUP BY department
+)
+
+SELECT
+    department,
+    average_salary
+FROM Department_Salary
+WHERE average_salary > 60000;
+'''✅ Answer:
+Yes.
+The CTE creates:
+department | average_salary
+The outer query can then use average_salary.'''
+#Question 3 — WILL THIS WORK?
+SELECT
+    department,
+    AVG(salary) AS average_salary
+FROM Employees
+WHERE average_salary > 60000
+GROUP BY department;
+'''✅ Answer:
+No.
+Because average_salary is an aggregate result created by:
+AVG(salary)
+WHERE operates before aggregation.
+The appropriate clause is:
+HAVING AVG(salary) > 60000
+
+WHERE → filters rows
+GROUP BY → groups rows
+HAVING → filters groups'''
+
+
+
+
+
+
+
