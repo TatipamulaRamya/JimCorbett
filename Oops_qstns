@@ -1,0 +1,148 @@
+class MovieBookingSystem:
+    def __init__(self):
+        self.data = {}
+
+    def create_booking(self, booking_id, customer_name, movie_name, tickets):
+        if booking_id in self.data:
+            raise ValueError("Booking already exists")
+        self.data[booking_id] = {
+            "customer_name": customer_name,
+            "movie_name": movie_name,
+            "tickets": tickets,
+            "status": "Booked"
+        }
+        return self.data
+
+    def update_tickets(self, booking_id, new_ticket_count):
+        if booking_id not in self.data:
+            raise KeyError("Booking not found")
+        self.data[booking_id]["tickets"] = new_ticket_count
+        return self.data
+
+    def get_booking_details(self, booking_id):
+        if booking_id not in self.data:
+            raise KeyError("Booking not found")
+        return self.data[booking_id]
+
+    def get_group_bookings(self, minimum_tickets):
+        return [bid for bid, info in self.data.items()
+                if info["tickets"] >= minimum_tickets]
+class CafeteriaOrderSystem:
+    def __init__(self):
+        self.data = {}
+
+    def add_order(self, employee_id, name, meal_type, quantity):
+        if employee_id in self.data:
+            raise ValueError("Order already exists")
+        self.data[employee_id] = {
+            "name": name,
+            "meal_type": meal_type,
+            "quantity": quantity,
+            "status": "Confirmed"
+        }
+        return self.data
+
+    def update_quantity(self, employee_id, new_quantity):
+        if employee_id not in self.data:
+            raise KeyError("Order not found")
+        self.data[employee_id]["quantity"] = new_quantity
+        return self.data
+
+    def get_order_details(self, employee_id):
+        if employee_id not in self.data:
+            raise KeyError("Order not found")
+        return self.data[employee_id]
+
+    def get_bulk_orders(self, minimum_quantity):
+        return [eid for eid, info in self.data.items()
+                if info["quantity"] >= minimum_quantity]
+
+class ParcelTrackingSystem:
+    def __init__(self):
+        self.data = {}
+
+    def add_parcel(self, tracking_id, customer_name, destination, weight):
+        if tracking_id in self.data:
+            raise ValueError("Parcel already exists")
+        self.data[tracking_id] = {
+            "customer_name": customer_name,
+            "destination": destination,
+            "weight": weight,
+            "status": "In Transit"
+        }
+        return self.data
+
+    def update_weight(self, tracking_id, new_weight):
+        if tracking_id not in self.data:
+            raise KeyError("Parcel not found")
+        self.data[tracking_id]["weight"] = new_weight
+        return self.data
+
+    def get_parcel_details(self, tracking_id):
+        if tracking_id not in self.data:
+            raise KeyError("Parcel not found")
+        return self.data[tracking_id]
+
+    def get_heavy_parcels(self, minimum_weight):
+        return [tid for tid, info in self.data.items()
+                if info["weight"] >= minimum_weight]
+
+class MobileDataUsageSystem:
+    def __init__(self):
+        self.data = {}
+
+    def add_customer(self, customer_id, name, plan_name, data_used):
+        if customer_id in self.data:
+            raise ValueError("Customer already exists")
+        self.data[customer_id] = {
+            "name": name,
+            "plan_name": plan_name,
+            "data_used": data_used,
+            "status": "Active"
+        }
+        return self.data
+
+    def update_data_usage(self, customer_id, new_usage):
+        if customer_id not in self.data:
+            raise KeyError("Customer not found")
+        self.data[customer_id]["data_used"] = new_usage
+        return self.data
+
+    def get_customer_details(self, customer_id):
+        if customer_id not in self.data:
+            raise KeyError("Customer not found")
+        return self.data[customer_id]
+
+    def get_high_data_users(self, usage_threshold):
+        return [cid for cid, info in self.data.items()
+                if info["data_used"] >= usage_threshold]
+
+class GymWorkoutSystem:
+    def __init__(self):
+        self.data = {}
+
+    def add_member(self, member_id, name, workout_type, workout_minutes):
+        if member_id in self.data:
+            raise ValueError("Member already exists")
+        self.data[member_id] = {
+            "name": name,
+            "workout_type": workout_type,
+            "workout_minutes": workout_minutes,
+            "status": "Active"
+        }
+        return self.data
+
+    def update_workout_minutes(self, member_id, new_minutes):
+        if member_id not in self.data:
+            raise KeyError("Member not found")
+        self.data[member_id]["workout_minutes"] = new_minutes
+        return self.data
+
+    def get_member_details(self, member_id):
+        if member_id not in self.data:
+            raise KeyError("Member not found")
+        return self.data[member_id]
+
+    def get_active_members(self, minimum_minutes):
+        return [mid for mid, info in self.data.items()
+                if info["workout_minutes"] >= minimum_minutes]
