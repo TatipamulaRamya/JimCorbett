@@ -1,0 +1,120 @@
+import pandas as pd
+
+class LibraryLendingAnalyzer:
+
+    # 1. Create Lending DataFrame
+    def create_lending_df(self, data: list) -> pd.DataFrame:
+        df = pd.DataFrame(
+            data,
+            columns=["MemberID", "Category", "Date", "Status"]
+        )
+        return df
+
+    # 2. Calculate Monthly Return Rate per Member
+    def compute_monthly_return_rate(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        df["Month"] = df["Date"].str[:7]
+
+        total_df = (
+            df.groupby(["MemberID", "Month"])
+            .size()
+            .reset_index(name="Total")
+        )
+
+        returned_df = (
+            df[df["Status"] == "Returned"]
+            .groupby(["MemberID", "Month"])
+            .size()
+            .reset_index(name="Returned")
+        )
+
+        result = pd.merge(
+            total_df,
+            returned_df,
+            on=["MemberID", "Month"],
+            how="left"
+        )
+
+        result["Returned"] = result["Returned"].fillna(0)
+
+        result["Return Rate"] = (
+            result["Returned"] / result["Total"]
+        ) * 100
+
+        return result[["MemberID", "Month", "Return Rate"]]
+
+    # 3. Add Overdue Flag Column
+    def add_overdue_flag(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        df["IsOverdue"] = (
+            df["Status"] == "Overdue"
+        ).astype(int)
+
+        return df
+
+    # 4. Filter Members with High Overdue Records
+    def high_overdue_members(self, df: pd.DataFrame,
+                             threshold: int) -> pd.DataFrame:
+
+        overdue_df = df[df["Status"] == "Overdue"]
+
+        result = (
+            overdue_df.groupby("MemberID")
+            .size()
+            .reset_index(name="Overdue Count")
+        )
+
+        result = result[
+            result["Overdue Count"] > threshold
+        ]
+
+        return result
+
+    # 5. Category-wise Lending Summary
+    def category_lending_summary(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        summary = pd.crosstab(
+            df["Category"],
+            df["Status"]
+        )
+
+        summary.columns.name = None
+
+        summary = summary.reindex(
+            columns=["Borrowed", "Returned", "Overdue"],
+            fill_value=0
+        )
+
+        return summary.reset_index()
+
+
+# Driver Code
+
+analyzer = LibraryLendingAnalyzer()
+
+data = [
+    [501, "Fiction", "2024-06-01", "Borrowed"],
+    [502, "Science", "2024-06-01", "Returned"],
+    [501, "Fiction", "2024-06-02", "Overdue"],
+    [502, "Science", "2024-06-02", "Returned"],
+    [502, "Science", "2024-06-03", "Overdue"],
+    [502, "Science", "2024-06-04", "Overdue"],
+    [502, "Science", "2024-06-05", "Overdue"]
+]
+
+df = analyzer.create_lending_df(data)
+
+print("Lending DataFrame:")
+print(df)
+
+print("\nMonthly Return Rate:")
+print(analyzer.compute_monthly_return_rate(df))
+
+print("\nOverdue Flag:")
+print(analyzer.add_overdue_flag(df.copy()))
+
+print("\nHigh Overdue Members:")
+print(analyzer.high_overdue_members(df, 1))
+
+print("\nCategory Wise Summary:")
+print(analyzer.category_lending_summary(df))
