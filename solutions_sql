@@ -14,61 +14,61 @@ WHERE o.total_amount = (
 
 #Q2
 select
-s.student_id,
-s.name as student_name,
-c.course_id,
-c.course_name,
-e.grade,
-d.department_name
+    s.student_id,
+    s.name as student_name,
+    c.course_id,
+    c.course_name,
+    e.grade,
+    d.department_name
 from Enrollments e 
 join Students s 
-on s.student_id=e.student_id
+    on s.student_id=e.student_id
 join Courses c 
-on c.course_id=e.course_id
+    on c.course_id=e.course_id
 join Departments d 
-on d.department_id=c.department_id;
+    on d.department_id=c.department_id;
 
 #Q3
 SELECT 
-c.course_name,
-avg(s.score) as avg_score
+    c.course_name,
+    avg(s.score) as avg_score
 from Assignments a  
 join Submissions s  
-on s.assignment_id=a.assignment_id
+    on s.assignment_id=a.assignment_id
 join Courses c  
-on a.course_id=c.course_id
+    on a.course_id=c.course_id
 group by 
-c.course_id,
-c.course_name
+    c.course_id,
+    c.course_name
 order by 
-avg_score desc ;
+    avg_score desc ;
 
 #Q4
 select 
-department_name,
-doctor_name,
-total_revenue,
-rank() over(
-partition by dept_id
-order by total_revenue desc)
-as revenue_rank
+    department_name,
+    doctor_name,
+    total_revenue,
+    rank() over(
+        partition by dept_id
+        order by total_revenue desc
+    )as revenue_rank
 from(
-select 
-d.dept_id,
-d.department_name,
-do.doctor_name,
-sum(b.amount) as total_revenue
-from Doctors do 
-join Departments d 
-on d.dept_id=do.dept_id
-join Appointments a 
-on a.doctor_id=do.doctor_id
-join Bills b 
-on b.appointment_id=a.appointment_id
-group by 
-d.dept_id,
-d.department_name,
-do.doctor_name) as revenuetab;
+    select 
+        d.dept_id,
+        d.department_name,
+        do.doctor_name,
+        sum(b.amount) as total_revenue
+    from Doctors do 
+    join Departments d 
+        on d.dept_id=do.dept_id
+    join Appointments a 
+        on a.doctor_id=do.doctor_id
+    join Bills b 
+        on b.appointment_id=a.appointment_id
+    group by 
+        d.dept_id,
+        d.department_name,
+        do.doctor_name) as revenuetab;
 
 #Q5
 SELECT
