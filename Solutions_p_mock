@@ -1,0 +1,231 @@
+============================================================
+QUESTION 1 — SQL
+============================================================
+
+Student Enrollments
+
+Tables:
+students, enrollments, courses, departments
+
+Question:
+Retrieve student_id, name, course_id, and
+running_enrollments_count (number of courses enrolled by that
+student up to and including the current course based on course_id).
+
+QUERY:
+
+SELECT
+    s.student_id,
+    s.name,
+    e.course_id,
+    COUNT(*) OVER (
+        PARTITION BY e.student_id
+        ORDER BY e.course_id
+    ) AS running_enrollments_count
+FROM students s
+JOIN enrollments e
+    ON s.student_id = e.student_id
+JOIN courses c
+    ON e.course_id = c.course_id
+JOIN departments d
+    ON c.department_id = d.department_id
+ORDER BY s.student_id, e.course_id;
+
+
+============================================================
+QUESTION 2 — SQL
+============================================================
+
+Hospital Appointments
+
+Tables:
+patients, departments, doctors, appointments
+
+Question:
+Retrieve status, appointment_id, appointment_date,
+patient_name, doctor_name, and department_name.
+
+QUERY:
+
+SELECT
+    a.status,
+    a.appointment_id,
+    a.appointment_date,
+    p.patient_name,
+    d.doctor_name,
+    dept.department_name
+FROM appointments a
+JOIN patients p
+    ON a.patient_id = p.patient_id
+JOIN doctors d
+    ON a.doctor_id = d.doctor_id
+JOIN departments dept
+    ON d.department_id = dept.department_id;
+
+
+============================================================
+QUESTION 3 — PYTHON
+============================================================
+
+Personalized Fitness Tracker
+
+Question:
+Create a FitnessTracker class to:
+1. Register users
+2. Log workouts
+3. Calculate average calories
+4. Generate progress reports
+
+QUERY / CODE:
+
+class FitnessTracker:
+
+    def __init__(self):
+        pass
+
+    def register_user(self, fitness_data: dict, user_name: str) -> dict:
+        fitness_data[user_name] = {
+            "workouts": 0,
+            "calories": 0,
+            "status": "Inactive"
+        }
+        return fitness_data
+
+    def log_workout(self, fitness_data: dict,
+                    user_name: str,
+                    calories_burned: int) -> dict:
+
+        if user_name not in fitness_data:
+            raise KeyError("Error: User not found")
+
+        fitness_data[user_name]["workouts"] += 1
+        fitness_data[user_name]["calories"] += calories_burned
+
+        if fitness_data[user_name]["workouts"] > 5:
+            fitness_data[user_name]["status"] = "Active"
+
+        return fitness_data
+
+    def calculate_average_calories(self, fitness_data: dict,
+                                   user_name: str) -> float:
+
+        if (user_name not in fitness_data or
+                fitness_data[user_name]["workouts"] == 0):
+            raise KeyError("Error: Invalid user or no workouts")
+
+        average = (
+            fitness_data[user_name]["calories"] /
+            fitness_data[user_name]["workouts"]
+        )
+
+        return round(average, 2)
+
+    def generate_progress_report(self, fitness_data: dict) -> dict:
+
+        report = {}
+
+        for user_name in fitness_data:
+            calories = fitness_data[user_name]["calories"]
+
+            if calories < 1000:
+                report[user_name] = "Beginner"
+            elif calories <= 5000:
+                report[user_name] = "Intermediate"
+            else:
+                report[user_name] = "Advanced"
+
+        return report
+
+
+============================================================
+QUESTION 4 — PYTHON / NUMPY
+============================================================
+
+Instagram Reel Trend Engagement Analysis
+
+Question:
+Create NumPy functions to:
+1. Create a views array
+2. Validate the array
+3. Compute total, average, and maximum views
+4. Categorize trend levels
+5. Find the longest growth streak
+6. Format view counts
+
+QUERY / CODE:
+
+import numpy as np
+
+
+def create_views_array(views_data: list) -> np.ndarray:
+    return np.array(views_data, dtype=np.int64)
+
+
+def validate_views_array(views_array: np.ndarray) -> bool:
+
+    if views_array.size == 0:
+        return False
+
+    if not np.issubdtype(views_array.dtype, np.number):
+        return False
+
+    if np.any(views_array < 0):
+        return False
+
+    return True
+
+
+def compute_view_metrics(views_array: np.ndarray) -> tuple:
+
+    total = int(np.sum(views_array))
+    average = round(float(np.mean(views_array)), 2)
+    maximum = int(np.max(views_array))
+
+    return total, average, maximum
+
+
+def categorize_trend_levels(views_array: np.ndarray) -> np.ndarray:
+
+    result = []
+
+    for x in views_array:
+        if x < 3000:
+            result.append("Low Trend")
+        elif x < 5000:
+            result.append("Moderate Trend")
+        else:
+            result.append("Viral Trend")
+
+    return np.array(result)
+
+
+def longest_growth_streak(views_array: np.ndarray) -> int:
+
+    if len(views_array) == 0:
+        return 0
+
+    max_streak = 1
+    current_streak = 1
+
+    for i in range(1, len(views_array)):
+
+        if views_array[i] > views_array[i - 1]:
+            current_streak += 1
+
+            if current_streak > max_streak:
+                max_streak = current_streak
+        else:
+            current_streak = 1
+
+    return max_streak
+
+
+def format_view_counts(views_array: np.ndarray) -> np.ndarray:
+
+    result = []
+
+    for x in views_array:
+        formatted = f"{int(x):,}"
+        result.append(formatted)
+
+    return np.array(result)
