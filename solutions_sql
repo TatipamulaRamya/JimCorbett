@@ -1,5 +1,7 @@
 #SQL QUESTION AND ANSWERS
+
 #Q1
+
 SELECT
     o.order_id,
     c.name AS customer_name,
@@ -13,6 +15,7 @@ WHERE o.total_amount = (
 );
 
 #Q2
+
 select
     s.student_id,
     s.name as student_name,
@@ -29,6 +32,7 @@ join Departments d
     on d.department_id=c.department_id;
 
 #Q3
+
 SELECT 
     c.course_name,
     avg(s.score) as avg_score
@@ -44,6 +48,7 @@ order by
     avg_score desc ;
 
 #Q4
+
 select 
     department_name,
     doctor_name,
@@ -71,6 +76,7 @@ from(
         do.doctor_name) as revenuetab;
 
 #Q5
+
 SELECT
     student_id,
     name,
@@ -94,6 +100,7 @@ FROM (
 ORDER BY rank_by_enrollments;
 
 #Q6
+
 SELECT DISTINCT
     m.movie_id,
     m.title
