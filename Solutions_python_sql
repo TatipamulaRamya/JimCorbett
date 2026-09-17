@@ -77,16 +77,6 @@ def format_view_counts(views_array: np.ndarray) -> np.ndarray:
 
 
 
-# Driver Code
-views = create_views_array([1200, 3500, 1800, 5200, 7600])
-
-print("Views:", views)
-print("Valid:", validate_views_array(views))
-print("Metrics:", compute_view_metrics(views))
-print("Trend Levels:", categorize_trend_levels(views))
-print("Longest Growth Streak:", longest_growth_streak(views))
-print("Formatted Views:", format_view_counts(views))
-
 #2. Python OOPs — Chess Tournament System
 class ChessTournamentSystem:
 
