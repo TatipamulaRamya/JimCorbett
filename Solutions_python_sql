@@ -1,80 +1,97 @@
 #1. NumPy — Instagram Reel Trend Analysis
 import numpy as np
 
+class InstagramReelAnalyzer:
 
-def create_views_array(views_data: list) -> np.ndarray:
-    return np.array(views_data, dtype=np.int64)
+    def create_views_array(self, views_data: list) -> np.ndarray:
+        return np.array(views_data, dtype=np.int64)
 
+    def validate_views_array(self, views_array: np.ndarray) -> bool:
+        if views_array.size == 0:
+            return False
 
-def validate_views_array(views_array: np.ndarray) -> bool:
+        if not np.issubdtype(views_array.dtype, np.number):
+            return False
 
-    if views_array.size == 0:
-        return False
+        if np.any(views_array < 0):
+            return False
 
-    if not np.issubdtype(views_array.dtype, np.number):
-        return False
+        return True
 
-    if np.any(views_array < 0):
-        return False
+    def compute_view_metrics(self, views_array: np.ndarray) -> tuple:
+        total_views = int(np.sum(views_array))
+        average_views = round(float(np.mean(views_array)), 2)
+        maximum_views = int(np.max(views_array))
 
-    return True
+        return total_views, average_views, maximum_views
 
+    def categorize_trend_levels(self, views_array: np.ndarray) -> np.ndarray:
+        result = np.empty(views_array.shape, dtype=object)
 
-def compute_view_metrics(views_array: np.ndarray) -> tuple:
+        result[views_array < 3000] = "Low Trend"
+        result[(views_array >= 3000) & (views_array < 5000)] = "Moderate Trend"
+        result[views_array >= 5000] = "Viral Trend"
 
-    total = int(np.sum(views_array))
-    average = round(float(np.mean(views_array)), 2)
-    maximum = int(np.max(views_array))
+        return result
 
-    return total, average, maximum
+    def longest_growth_streak(views_array: np.ndarray) -> int:
 
+        if len(views_array) == 0:
+            return 0
+    
+        max_streak = 1
+        current_streak = 1
+    
+        for i in range(1, len(views_array)):
+    
+            if views_array[i] > views_array[i - 1]:
+                current_streak += 1
+    
+                if current_streak > max_streak:
+                    max_streak = current_streak
+            else:
+                current_streak = 1
 
-def categorize_trend_levels(views_array: np.ndarray) -> np.ndarray:
-
-    result = []
-
-    for x in views_array:
-        if x < 3000:
-            result.append("Low Trend")
-        elif x < 5000:
-            result.append("Moderate Trend")
-        else:
-            result.append("Viral Trend")
-
-    return np.array(result)
-
-
-def longest_growth_streak(views_array: np.ndarray) -> int:
-
-    if len(views_array) == 0:
-        return 0
-
-    max_streak = 1
-    current_streak = 1
-
-    for i in range(1, len(views_array)):
-
-        if views_array[i] > views_array[i - 1]:
-            current_streak += 1
-
-            if current_streak > max_streak:
-                max_streak = current_streak
-        else:
-            current_streak = 1
-
-    return max_streak
+        return max_streak
 
 
-def format_view_counts(views_array: np.ndarray) -> np.ndarray:
+    def format_view_counts(views_array: np.ndarray) -> np.ndarray:
+    
+        result = []
+    
+        for x in views_array:
+            formatted = f"{int(x):,}"
+            result.append(formatted)
+    
+        return np.array(result)
 
-    result = []
 
-    for x in views_array:
-        formatted = f"{int(x):,}"
-        result.append(formatted)
 
-    return np.array(result)
+# DRIVER CODE
 
+obj = InstagramReelAnalyzer()
+
+views = obj.create_views_array(
+    [1200, 3500, 1800, 5200, 7600]
+)
+
+print("Views Array:")
+print(views)
+
+print("\nValidation:")
+print(obj.validate_views_array(views))
+
+print("\nView Metrics:")
+print(obj.compute_view_metrics(views))
+
+print("\nTrend Levels:")
+print(obj.categorize_trend_levels(views))
+
+print("\nLongest Growth Streak:")
+print(obj.longest_growth_streak(views))
+
+print("\nFormatted View Counts:")
+print(obj.format_view_counts(views))
 
 
 #2. Python OOPs — Chess Tournament System
