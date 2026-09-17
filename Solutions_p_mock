@@ -157,75 +157,96 @@ QUERY / CODE:
 import numpy as np
 
 
-def create_views_array(views_data: list) -> np.ndarray:
-    return np.array(views_data, dtype=np.int64)
+class InstagramReelAnalyzer:
+
+    def create_views_array(self, views_data: list) -> np.ndarray:
+        return np.array(views_data, dtype=np.int64)
+
+    def validate_views_array(self, views_array: np.ndarray) -> bool:
+        if views_array.size == 0:
+            return False
+
+        if not np.issubdtype(views_array.dtype, np.number):
+            return False
+
+        if np.any(views_array < 0):
+            return False
+
+        return True
+
+    def compute_view_metrics(self, views_array: np.ndarray) -> tuple:
+        total_views = int(np.sum(views_array))
+        average_views = round(float(np.mean(views_array)), 2)
+        maximum_views = int(np.max(views_array))
+
+        return total_views, average_views, maximum_views
+
+    def categorize_trend_levels(self, views_array: np.ndarray) -> np.ndarray:
+        result = np.empty(views_array.shape, dtype=object)
+
+        result[views_array < 3000] = "Low Trend"
+        result[(views_array >= 3000) & (views_array < 5000)] = "Moderate Trend"
+        result[views_array >= 5000] = "Viral Trend"
+
+        return result
+
+    def longest_growth_streak(views_array: np.ndarray) -> int:
+
+        if len(views_array) == 0:
+            return 0
+    
+        max_streak = 1
+        current_streak = 1
+    
+        for i in range(1, len(views_array)):
+    
+            if views_array[i] > views_array[i - 1]:
+                current_streak += 1
+    
+                if current_streak > max_streak:
+                    max_streak = current_streak
+            else:
+                current_streak = 1
+
+        return max_streak
 
 
-def validate_views_array(views_array: np.ndarray) -> bool:
-
-    if views_array.size == 0:
-        return False
-
-    if not np.issubdtype(views_array.dtype, np.number):
-        return False
-
-    if np.any(views_array < 0):
-        return False
-
-    return True
+    def format_view_counts(views_array: np.ndarray) -> np.ndarray:
+    
+        result = []
+    
+        for x in views_array:
+            formatted = f"{int(x):,}"
+            result.append(formatted)
+    
+        return np.array(result)
 
 
-def compute_view_metrics(views_array: np.ndarray) -> tuple:
 
-    total = int(np.sum(views_array))
-    average = round(float(np.mean(views_array)), 2)
-    maximum = int(np.max(views_array))
+# DRIVER CODE
 
-    return total, average, maximum
+obj = InstagramReelAnalyzer()
 
+views = obj.create_views_array(
+    [1200, 3500, 1800, 5200, 7600]
+)
 
-def categorize_trend_levels(views_array: np.ndarray) -> np.ndarray:
+print("Views Array:")
+print(views)
 
-    result = []
+print("\nValidation:")
+print(obj.validate_views_array(views))
 
-    for x in views_array:
-        if x < 3000:
-            result.append("Low Trend")
-        elif x < 5000:
-            result.append("Moderate Trend")
-        else:
-            result.append("Viral Trend")
+print("\nView Metrics:")
+print(obj.compute_view_metrics(views))
 
-    return np.array(result)
+print("\nTrend Levels:")
+print(obj.categorize_trend_levels(views))
 
+print("\nLongest Growth Streak:")
+print(obj.longest_growth_streak(views))
 
-def longest_growth_streak(views_array: np.ndarray) -> int:
-
-    if len(views_array) == 0:
-        return 0
-
-    max_streak = 1
-    current_streak = 1
-
-    for i in range(1, len(views_array)):
-
-        if views_array[i] > views_array[i - 1]:
-            current_streak += 1
-
-            if current_streak > max_streak:
-                max_streak = current_streak
-        else:
-            current_streak = 1
-
-    return max_streak
+print("\nFormatted View Counts:")
+print(obj.format_view_counts(views))
 
 
-def format_view_counts(views_array: np.ndarray) -> np.ndarray:
-
-    result = []
-
-    for x in views_array:
-        formatted = f"{int(x):,}"
-        result.append(formatted)
-
-    return np.array(result)
