@@ -486,24 +486,19 @@ def compute_temperature_stats(arr: np.ndarray) -> tuple:
 
 
 # 4. Categorize Temperatures
-def categorize_temperatures(arr: np.ndarray) -> np.ndarray:
-
-    conditions = [
-        (arr >= -30.0) & (arr <= -18.0),
-        (arr > -18.0) & (arr <= 5.0),
-        (arr > 5.0) & (arr <= 10.0)
-    ]
-
-    choices = [
+def categorize_temperatures(arr):
+    return np.where(
+        (-30 <= arr) & (arr <= -18),
         "Frozen",
-        "Chilled",
-        "Warning"
-    ]
-
-    return np.select(
-        conditions,
-        choices,
-        default="Invalid"
+        np.where(
+            (-18 < arr) & (arr <= 5),
+            "Chilled",
+            np.where(
+                (5 < arr) & (arr <= 10),
+                "Warning",
+                "Invalid"
+            )
+        )
     )
 
 
