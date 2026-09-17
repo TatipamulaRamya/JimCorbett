@@ -1,0 +1,264 @@
+#Q1 — Fastest Finish Per Event(SQL)
+
+SELECT
+    e.event_name,
+    a.athlete_name,
+    r.finish_time,
+    ROW_NUMBER() OVER (
+        PARTITION BY r.event_id
+        ORDER BY r.finish_time, a.athlete_name
+    ) AS rank_in_event
+FROM Results r
+JOIN Events e
+    ON r.event_id = e.event_id
+JOIN Athletes a
+    ON r.athlete_id = a.athlete_id
+WHERE r.status = 'Recorded';
+
+#Q2 — Inventory Management System(OOPS)
+
+class InventoryManagementSystem:
+
+    def __init__(self):
+        self.inventory = {}
+
+    def add_item(self, item_name: str, quantity: int) -> dict:
+        if item_name in self.inventory:
+            self.inventory[item_name] += quantity
+        else:
+            self.inventory[item_name] = quantity
+
+        return self.inventory
+
+    def update_stock(self, item_name: str, new_quantity: int) -> dict:
+        if item_name not in self.inventory:
+            raise KeyError("Not found")
+
+        self.inventory[item_name] = new_quantity
+
+        return self.inventory
+
+    def get_item_stock(self, item_name: str) -> int:
+        if item_name not in self.inventory:
+            raise KeyError("Not found")
+
+        return self.inventory[item_name]
+
+    def get_available_items(self) -> list:
+        result = []
+
+        for item in self.inventory:
+            if self.inventory[item] > 0:
+                result.append(item)
+
+        return result
+
+#Q3 - Flight Delay Analyzer(Pandas)
+
+import pandas as pd
+
+
+class FlightDelayAnalyzer:
+
+    def create_flight_log_df(self, flight_log: list) -> pd.DataFrame:
+        return pd.DataFrame(
+            flight_log,
+            columns=["FlightID", "AirlineCode", "Route", "Delay"]
+        )
+
+    def create_airline_master_df(self, airline_master: list) -> pd.DataFrame:
+        return pd.DataFrame(
+            airline_master,
+            columns=["AirlineCode", "AirlineName"]
+        )
+
+    def merge_airline_names(
+        self,
+        flight_log_df: pd.DataFrame,
+        airline_master_df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        return flight_log_df.merge(
+            airline_master_df,
+            on="AirlineCode",
+            how="left"
+        )
+
+    def average_delay_by_airline(
+        self,
+        merged_df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        result = (
+            merged_df
+            .groupby("AirlineName")["Delay"]
+            .mean()
+            .reset_index()
+        )
+
+        result = result.rename(
+            columns={"Delay": "Average Delay"}
+        )
+
+        return result
+
+    def filter_high_delays(
+        self,
+        flight_log_df: pd.DataFrame,
+        threshold: int
+    ) -> pd.DataFrame:
+
+        return flight_log_df[
+            flight_log_df["Delay"] > threshold
+        ]
+
+    def most_delayed_route(
+        self,
+        flight_log_df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        result = (
+            flight_log_df
+            .groupby("Route")["Delay"]
+            .mean()
+            .reset_index()
+        )
+
+        result = result.rename(
+            columns={"Delay": "Average Delay"}
+        )
+
+        max_delay = result["Average Delay"].max()
+
+        result = result[
+            result["Average Delay"] == max_delay
+        ]
+
+        result = (
+            result
+            .sort_values(
+                "Average Delay",
+                ascending=False
+            )
+            .reset_index(drop=True)
+            .head(1)
+        )
+
+        return result
+
+#Q4 - Employee Performance Analyzer(NumPy)
+
+import numpy as np
+
+
+class EmployeePerformanceAnalyzer:
+
+    def create_performance_array(
+        self,
+        scores_array: list
+    ) -> np.ndarray:
+
+        return np.array(scores_array, dtype=int)
+
+    def validate_scores(
+        self,
+        performance_array: np.ndarray
+    ) -> bool:
+
+        if performance_array.size == 0:
+            return False
+
+        if np.any(performance_array < 0):
+            return False
+
+        if np.any(performance_array > 100):
+            return False
+
+        return True
+
+    def compute_performance_summary(
+        self,
+        performance_array: np.ndarray
+    ) -> tuple:
+
+        performance_array = np.array(
+            performance_array,
+            dtype=float
+        )
+
+        total = np.sum(performance_array)
+        average = round(np.mean(performance_array), 1)
+        maximum = np.max(performance_array)
+
+        return (int(total), average, int(maximum))
+
+    def apply_bonus(
+        self,
+        performance_array: np.ndarray
+    ) -> np.ndarray:
+
+        result = np.array(
+            performance_array,
+            dtype=float
+        )
+
+        for i in range(len(result)):
+            if result[i] > 85:
+                result[i] = result[i] * 1.05
+
+        result = np.clip(result, 0, 100)
+
+        return np.round(result, 1)
+
+    def categorize_employees(
+        self,
+        performance_array: np.ndarray
+    ) -> np.ndarray:
+
+        result = []
+
+        for score in performance_array:
+
+            if score >= 90:
+                result.append("Excellent")
+
+            elif score >= 80:
+                result.append("Good")
+
+            else:
+                result.append("Needs Improvement")
+
+        return np.array(result)
+
+    def format_scores_with_grades(
+        self,
+        performance_array: np.ndarray
+    ) -> np.ndarray:
+
+        result = []
+
+        for score in performance_array:
+
+            if score >= 90:
+                result.append("A")
+
+            elif score >= 80:
+                result.append("B")
+
+            elif score >= 70:
+                result.append("C")
+
+            else:
+                result.append("D")
+
+        return np.array(result)
+
+#Q5 - Most Popular Order Status(SQL)
+
+SELECT
+    status,
+    COUNT(*) AS status_count
+FROM Orders
+GROUP BY status
+ORDER BY status_count DESC, status ASC
+LIMIT 1;
