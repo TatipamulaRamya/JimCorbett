@@ -1,0 +1,182 @@
+#OOPS
+#Q1
+import re
+
+class WordFrequencyCounter:
+
+    def preprocess_text(self, text: str) -> list:
+        text = text.lower()
+        text = re.sub(r'[^\w\s]', '', text)
+        return text.split()
+
+    def compute_word_frequency(self, words: list) -> dict:
+        freq = {}
+
+        for word in words:
+            freq[word] = freq.get(word, 0) + 1
+
+        return freq
+
+    def get_most_frequent_word(self, freq_dict: dict) -> tuple:
+        if not freq_dict:
+            return None
+
+        word = max(freq_dict, key=lambda x: freq_dict[x])
+        return (word, freq_dict[word])
+
+    def filter_words_by_frequency(self, freq_dict: dict, n: int) -> dict:
+        if n <= 0:
+            return {}
+
+        result = {}
+
+        for word, count in freq_dict.items():
+            if count >= n:
+                result[word] = count
+
+        return result
+
+
+# Driver Code
+obj = WordFrequencyCounter()
+
+text = "Hello, hello! How are you?"
+
+words = obj.preprocess_text(text)
+print("Words:", words)
+
+freq = obj.compute_word_frequency(words)
+print("Frequency:", freq)
+
+print("Most Frequent:", obj.get_most_frequent_word(freq))
+
+print("Filtered:", obj.filter_words_by_frequency(freq, 2))
+
+#PANDAS 
+#Q2
+import pandas as pd
+
+class AttendanceAnalyzer:
+
+    def create_attendance_df(self, data: list) -> pd.DataFrame:
+        columns = ["EmployeeID", "Department", "Date", "Attendance"]
+
+        df = pd.DataFrame(data, columns=columns)
+
+        return df
+
+    def compute_monthly_attendance_rate(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        df = df.copy()
+
+        df["Month"] = df["Date"].str[:7]
+
+        total = (
+            df.groupby(["EmployeeID", "Month"])
+            .size()
+            .reset_index(name="Total")
+        )
+
+        present_df = df[df["Attendance"] == "Present"]
+
+        present = (
+            present_df.groupby(["EmployeeID", "Month"])
+            .size()
+            .reset_index(name="Present")
+        )
+
+        result = total.merge(
+            present,
+            on=["EmployeeID", "Month"],
+            how="left"
+        )
+
+        result["Present"] = result["Present"].fillna(0)
+
+        result["Attendance Rate"] = (
+            result["Present"] / result["Total"] * 100
+        )
+
+        return result[["EmployeeID", "Month", "Attendance Rate"]]
+
+    def add_absence_flag(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        df = df.copy()
+
+        df["IsAbsent"] = (
+            (df["Attendance"] == "Absent").astype(int)
+        )
+
+        return df
+
+    def high_absentees(
+        self,
+        df: pd.DataFrame,
+        threshold: int
+    ) -> pd.DataFrame:
+
+        absent = df[df["Attendance"] == "Absent"]
+
+        result = (
+            absent.groupby("EmployeeID")
+            .size()
+            .reset_index(name="Absence Count")
+        )
+
+        result = result[result["Absence Count"] > threshold]
+
+        return result.reset_index(drop=True)
+
+    def department_attendance_summary(
+        self,
+        df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        result = pd.crosstab(
+            df["Department"],
+            df["Attendance"]
+        )
+
+        result.columns.name = None
+
+        result = result.reindex(
+            columns=["Present", "Absent", "Leave"],
+            fill_value=0
+        )
+
+        result = result.reset_index()
+
+        return result
+
+
+# Driver Code
+
+obj = AttendanceAnalyzer()
+
+data = [
+    [201, "Sales", "2024-06-01", "Present"],
+    [202, "HR", "2024-06-01", "Absent"],
+    [201, "Sales", "2024-06-02", "Leave"],
+    [201, "Sales", "2024-06-03", "Present"],
+    [202, "HR", "2024-06-02", "Absent"],
+    [203, "HR", "2024-06-01", "Absent"],
+    [203, "HR", "2024-06-02", "Absent"],
+    [203, "HR", "2024-06-03", "Absent"]
+]
+
+df = obj.create_attendance_df(data)
+
+print("Attendance DataFrame:")
+print(df)
+
+print("\nMonthly Attendance Rate:")
+print(obj.compute_monthly_attendance_rate(df))
+
+print("\nAbsence Flag:")
+print(obj.add_absence_flag(df))
+
+print("\nHigh Absentees:")
+print(obj.high_absentees(df, 2))
+
+print("\nDepartment Attendance Summary:")
+print(obj.department_attendance_summary(df))
