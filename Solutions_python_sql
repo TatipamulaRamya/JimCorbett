@@ -1,0 +1,591 @@
+#1. NumPy — Instagram Reel Trend Analysis
+import numpy as np
+
+
+# 1. Create Views Array
+def create_views_array(views_data: list) -> np.ndarray:
+    return np.array(views_data, dtype=np.int64)
+
+
+# 2. Validate Views Array
+def validate_views_array(views_array: np.ndarray) -> bool:
+    if views_array.size == 0:
+        return False
+
+    if not np.issubdtype(views_array.dtype, np.number):
+        return False
+
+    if np.any(views_array < 0):
+        return False
+
+    return True
+
+
+# 3. Compute View Metrics
+def compute_view_metrics(views_array: np.ndarray) -> tuple:
+    total_views = int(np.sum(views_array))
+    average_views = round(float(np.mean(views_array)), 2)
+    maximum_views = int(np.max(views_array))
+
+    return total_views, average_views, maximum_views
+
+
+# 4. Categorize Trend Levels
+def categorize_trend_levels(views_array: np.ndarray) -> np.ndarray:
+    conditions = [
+        views_array < 3000,
+        (views_array >= 3000) & (views_array < 5000),
+        views_array >= 5000
+    ]
+
+    choices = [
+        "Low Trend",
+        "Moderate Trend",
+        "Viral Trend"
+    ]
+
+    return np.select(conditions, choices)
+
+
+# 5. Find Longest Growth Streak
+def longest_growth_streak(views_array: np.ndarray) -> int:
+    if len(views_array) == 0:
+        return 0
+
+    if len(views_array) == 1:
+        return 1
+
+    current_streak = 1
+    longest_streak = 1
+
+    for i in range(1, len(views_array)):
+        if views_array[i] > views_array[i - 1]:
+            current_streak += 1
+        else:
+            current_streak = 1
+
+        longest_streak = max(longest_streak, current_streak)
+
+    return longest_streak
+
+
+# 6. Format View Counts
+def format_view_counts(views_array: np.ndarray) -> np.ndarray:
+    return np.array([f"{int(value):,}" for value in views_array])
+
+
+# Driver Code
+views = create_views_array([1200, 3500, 1800, 5200, 7600])
+
+print("Views:", views)
+print("Valid:", validate_views_array(views))
+print("Metrics:", compute_view_metrics(views))
+print("Trend Levels:", categorize_trend_levels(views))
+print("Longest Growth Streak:", longest_growth_streak(views))
+print("Formatted Views:", format_view_counts(views))
+
+#2. Python OOPs — Chess Tournament System
+class ChessTournamentSystem:
+
+    def __init__(self):
+        self.players = {}
+
+    # 1. Add Player
+    def add_player(self, player_id: str, name: str, rating: int) -> dict:
+
+        if player_id in self.players:
+            raise ValueError("Player already exists")
+
+        self.players[player_id] = {
+            "name": name,
+            "rating": rating,
+            "status": "Active"
+        }
+
+        return self.players
+
+    # 2. Update Rating
+    def update_rating(self, player_id: str, new_rating: int) -> dict:
+
+        if player_id not in self.players:
+            raise KeyError("Player not found")
+
+        self.players[player_id]["rating"] = new_rating
+
+        return self.players
+
+    # 3. Get Player Details
+    def get_player_details(self, player_id: str) -> dict:
+
+        if player_id not in self.players:
+            raise KeyError("Player not found")
+
+        return self.players[player_id]
+
+    # 4. List Qualified Players
+    def qualified_players(self, minimum_rating: int) -> list:
+
+        result = []
+
+        for player_id, details in self.players.items():
+            if details["rating"] >= minimum_rating:
+                result.append(player_id)
+
+        return result
+
+
+# Driver Code
+chess = ChessTournamentSystem()
+
+chess.add_player("P101", "Arjun", 1850)
+chess.add_player("P102", "Riya", 1700)
+chess.add_player("P103", "Karthik", 2100)
+
+print(chess.players)
+
+chess.update_rating("P101", 1920)
+
+print(chess.get_player_details("P101"))
+
+print(chess.qualified_players(1800))
+
+#3. Pandas — EV Charging Station Analysis
+import pandas as pd
+
+
+class EVChargingAnalyzer:
+
+    # 1. Create Charging Sessions DataFrame
+    def create_sessions_df(self, session_data: list) -> pd.DataFrame:
+
+        columns = [
+            "SessionID",
+            "StationID",
+            "City",
+            "ChargingDate",
+            "EnergyKWh",
+            "DurationMinutes",
+            "PaymentStatus"
+        ]
+
+        return pd.DataFrame(session_data, columns=columns)
+
+
+    # 2. Clean Charging Sessions
+    def clean_sessions_data(self, df: pd.DataFrame) -> pd.DataFrame:
+
+        df = df.dropna(
+            subset=[
+                "SessionID",
+                "StationID",
+                "City",
+                "PaymentStatus"
+            ]
+        )
+
+        df = df[
+            (df["EnergyKWh"] > 0) &
+            (df["DurationMinutes"] > 0)
+        ]
+
+        df = df[
+            df["PaymentStatus"].isin(
+                ["Paid", "Pending", "Failed"]
+            )
+        ]
+
+        return df
+
+
+    # 3. Add Long Session Flag
+    def add_long_session_flag(
+        self,
+        df: pd.DataFrame,
+        duration_threshold: int
+    ) -> pd.DataFrame:
+
+        df = df.copy()
+
+        df["IsLongSession"] = (
+            df["DurationMinutes"] > duration_threshold
+        ).astype(int)
+
+        return df
+
+
+    # 4. Station Utilization Summary
+    def station_utilization_summary(
+        self,
+        df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        result = df.groupby("StationID").agg(
+            SessionCount=("SessionID", "count"),
+            TotalEnergyKWh=("EnergyKWh", "sum"),
+            AverageDuration=("DurationMinutes", "mean")
+        ).reset_index()
+
+        result["AverageDuration"] = result["AverageDuration"].round(1)
+
+        return result
+
+
+    # 5. High Energy Stations
+    def high_energy_stations(
+        self,
+        df: pd.DataFrame,
+        energy_threshold: float
+    ) -> pd.DataFrame:
+
+        result = (
+            df.groupby("StationID")["EnergyKWh"]
+            .sum()
+            .reset_index()
+        )
+
+        result = result.rename(
+            columns={"EnergyKWh": "TotalEnergyKWh"}
+        )
+
+        result = result[
+            result["TotalEnergyKWh"] > energy_threshold
+        ]
+
+        return result
+
+
+    # 6. City Revenue Summary
+    def city_revenue_summary(
+        self,
+        df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        paid_df = df[df["PaymentStatus"] == "Paid"].copy()
+
+        paid_df["Revenue"] = paid_df["EnergyKWh"] * 18
+
+        result = (
+            paid_df.groupby("City")["Revenue"]
+            .sum()
+            .reset_index()
+        )
+
+        return result
+
+
+# Driver Code
+analyzer = EVChargingAnalyzer()
+
+data = [
+    [501, "ST01", "Bengaluru", "2025-02-01", 42.5, 75, "Paid"],
+    [502, "ST02", "Chennai", "2025-02-01", 28.0, 50, "Paid"],
+    [503, "ST01", "Bengaluru", "2025-02-02", 55.0, 130, "Pending"]
+]
+
+df = analyzer.create_sessions_df(data)
+
+print("Original DataFrame:")
+print(df)
+
+cleaned_df = analyzer.clean_sessions_data(df)
+
+print("\nCleaned DataFrame:")
+print(cleaned_df)
+
+flagged_df = analyzer.add_long_session_flag(cleaned_df, 90)
+
+print("\nLong Session Flag:")
+print(flagged_df)
+
+print("\nStation Utilization:")
+print(analyzer.station_utilization_summary(cleaned_df))
+
+print("\nHigh Energy Stations:")
+print(analyzer.high_energy_stations(cleaned_df, 80.0))
+
+print("\nCity Revenue:")
+print(analyzer.city_revenue_summary(cleaned_df))
+
+#SQL
+#Q1
+SELECT
+    e.event_name,
+    a.athlete_name,
+    r.finish_time,
+    ROUND(
+        AVG(r.finish_time) OVER (
+            PARTITION BY r.event_id
+        ), 2
+    ) AS avg_event_time
+FROM Results r
+JOIN Events e
+    ON r.event_id = e.event_id
+JOIN Athletes a
+    ON r.athlete_id = a.athlete_id
+WHERE r.status = 'Recorded'
+ORDER BY
+    e.event_name,
+    r.finish_time;
+
+#Q2
+SELECT
+    c.customer_name,
+    o.order_id,
+    o.order_date,
+    DATEDIFF(
+        o.order_date,
+        LAG(o.order_date) OVER (
+            PARTITION BY o.customer_id
+            ORDER BY o.order_date, o.order_id
+        )
+    ) AS days_since_previous_order
+FROM Customers c
+JOIN Orders o
+    ON c.customer_id = o.customer_id
+ORDER BY
+    c.customer_name,
+    o.order_date,
+    o.order_id;
+
+#PYTHON
+#Q1 - 1. Pandas — Solar Farm Maintenance Analysis
+import pandas as pd
+
+
+class SolarMaintenanceAnalyzer:
+
+    def create_inspections_df(self, inspection_data: list) -> pd.DataFrame:
+        columns = [
+            "InspectionID",
+            "SiteID",
+            "Region",
+            "InspectionDate",
+            "OutputMWh",
+            "DowntimeHours",
+            "MaintenanceStatus"
+        ]
+
+        return pd.DataFrame(inspection_data, columns=columns)
+
+    def clean_inspection_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        result = df.dropna().copy()
+
+        result = result[
+            (result["OutputMWh"] > 0) &
+            (result["DowntimeHours"] >= 0) &
+            (result["MaintenanceStatus"].isin(["Completed", "Scheduled"]))
+        ]
+
+        return result.reset_index(drop=True)
+
+    def add_attention_flag(
+        self,
+        df: pd.DataFrame,
+        downtime_threshold: float
+    ) -> pd.DataFrame:
+
+        result = df.copy()
+
+        result["NeedsAttention"] = (
+            result["DowntimeHours"] > downtime_threshold
+        ).astype(int)
+
+        return result
+
+    def site_performance_summary(
+        self,
+        df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        result = df.groupby("SiteID").agg(
+            InspectionCount=("InspectionID", "count"),
+            TotalOutputMWh=("OutputMWh", "sum"),
+            AverageDowntime=("DowntimeHours", "mean")
+        ).reset_index()
+
+        result["AverageDowntime"] = result["AverageDowntime"].round(2)
+
+        return result.sort_values("SiteID").reset_index(drop=True)
+
+    def low_output_sites(
+        self,
+        df: pd.DataFrame,
+        output_threshold: float
+    ) -> pd.DataFrame:
+
+        result = (
+            df.groupby("SiteID")["OutputMWh"]
+            .sum()
+            .reset_index()
+        )
+
+        result = result.rename(
+            columns={"OutputMWh": "TotalOutputMWh"}
+        )
+
+        result = result[
+            result["TotalOutputMWh"] < output_threshold
+        ]
+
+        return result.sort_values("SiteID").reset_index(drop=True)
+
+    def regional_maintenance_cost(
+        self,
+        df: pd.DataFrame
+    ) -> pd.DataFrame:
+
+        result = df[
+            df["MaintenanceStatus"] == "Completed"
+        ].copy()
+
+        result["MaintenanceCost"] = (
+            result["DowntimeHours"] * 250.0
+        )
+
+        result = (
+            result.groupby("Region")["MaintenanceCost"]
+            .sum()
+            .reset_index()
+        )
+
+        return result.sort_values("Region").reset_index(drop=True)
+
+#Q2 - 2. NumPy — Cold-Storage Temperature Analyzer
+import numpy as np
+
+
+# 1. Create Temperature Array
+def create_temperature_array(values: list) -> np.ndarray:
+    return np.array(values, dtype=np.float64)
+
+
+# 2. Validate Temperature Array
+def validate_temperature_array(arr: np.ndarray) -> bool:
+
+    if arr.size == 0:
+        return False
+
+    if not np.issubdtype(arr.dtype, np.number):
+        return False
+
+    if np.any(arr < -30.0) or np.any(arr > 10.0):
+        return False
+
+    return True
+
+
+# 3. Compute Temperature Statistics
+def compute_temperature_stats(arr: np.ndarray) -> tuple:
+
+    mean = round(float(np.mean(arr)), 2)
+    standard_deviation = round(float(np.std(arr)), 2)
+    maximum = round(float(np.max(arr)), 2)
+    minimum = round(float(np.min(arr)), 2)
+
+    return mean, standard_deviation, maximum, minimum
+
+
+# 4. Categorize Temperatures
+def categorize_temperatures(arr: np.ndarray) -> np.ndarray:
+
+    conditions = [
+        (arr >= -30.0) & (arr <= -18.0),
+        (arr > -18.0) & (arr <= 5.0),
+        (arr > 5.0) & (arr <= 10.0)
+    ]
+
+    choices = [
+        "Frozen",
+        "Chilled",
+        "Warning"
+    ]
+
+    return np.select(
+        conditions,
+        choices,
+        default="Invalid"
+    )
+
+
+# 5. Find Longest Warning Streak
+def longest_warning_streak(arr: np.ndarray) -> int:
+
+    current_streak = 0
+    longest_streak = 0
+
+    for value in arr:
+
+        if 5.0 < value <= 10.0:
+            current_streak += 1
+            longest_streak = max(
+                longest_streak,
+                current_streak
+            )
+        else:
+            current_streak = 0
+
+    return longest_streak
+
+#Q3 - 3. Python OOPs — Museum Artifact Loan Registry
+class MuseumLoanRegistry:
+
+    def __init__(self):
+        self.loans = {}
+
+    # 1. Register Loan
+    def register_loan(
+        self,
+        loan_id: str,
+        artifact_name: str,
+        destination: str
+    ) -> dict:
+
+        if loan_id in self.loans:
+            raise ValueError("Loan already registered")
+
+        self.loans[loan_id] = {
+            "artifact_name": artifact_name,
+            "destination": destination,
+            "status": "On Loan"
+        }
+
+        return self.loans
+
+    # 2. Change Destination
+    def change_destination(
+        self,
+        loan_id: str,
+        new_destination: str
+    ) -> dict:
+
+        if loan_id not in self.loans:
+            raise KeyError("Loan not found")
+
+        self.loans[loan_id]["destination"] = new_destination
+
+        return self.loans
+
+    # 3. Get Loan Details
+    def get_loan_details(
+        self,
+        loan_id: str
+    ) -> dict:
+
+        if loan_id not in self.loans:
+            raise KeyError("Loan not found")
+
+        return self.loans[loan_id]
+
+    # 4. List Loans by Destination
+    def loans_by_destination(
+        self,
+        destination: str
+    ) -> list:
+
+        result = []
+
+        for loan_id, details in self.loans.items():
+            if details["destination"] == destination:
+                result.append(loan_id)
+
+        return result
