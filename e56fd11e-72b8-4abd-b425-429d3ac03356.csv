@@ -1,0 +1,27 @@
+# Sheet: Sheet1
+order_id,order_date,customer_id,customer_name,product_category,product_name,brand,unit_price,quantity,payment_mode,city
+1001,1/5/25,C001,Rahul Sharma,Electronics,Wireless Mouse,Logitech,1200,2,UPI,Mumbai
+1002,1/8/25,C002,Priya Singh,Clothing,Jeans,Levis,2500,1,Credit Card,Delhi
+1003,1/12/25,C003,Amit Kumar,Electronics,Keyboard,HP,1800,2,Debit Card,Bangalore
+1004,1/15/25,C004,Neha Patel,Grocery,Rice Bag,India Gate,900,3,UPI,Hyderabad
+1005,1/20/25,C005,Arjun Mehta,Clothing,T-Shirt,Puma,1200,2,Cash,Pune
+1006,2/3/25,C006,Sneha Rao,Electronics,Headphones,Sony,3500,1,Credit Card,Mumbai
+1007,2/7/25,C007,Rohan Verma,Grocery,Cooking Oil,Fortune,750,4,UPI,Delhi
+1008,2/11/25,C008,Anjali Shah,Clothing,Sneakers,Nike,4500,1,Debit Card,Bangalore
+1009,2/18/25,C009,Vikram Joshi,Electronics,Smart Watch,Boat,2800,2,UPI,Pune
+1010,2/25/25,C010,Kavya Nair,Grocery,Coffee,Nescafe,500,5,Cash,Hyderabad
+1011,3/2/25,C001,Rahul Sharma,Electronics,USB Cable,Anker,800,3,UPI,Mumbai
+1012,3/6/25,C002,Priya Singh,Clothing,Jacket,Adidas,3200,1,Credit Card,Delhi
+1013,3/10/25,C003,Amit Kumar,Grocery,Tea,Tata,450,6,Debit Card,Bangalore
+1014,3/15/25,C004,Neha Patel,Electronics,Power Bank,MI,1500,2,UPI,Hyderabad
+1015,3/22/25,C005,Arjun Mehta,Clothing,Shirt,Arrow,2200,2,Cash,Pune
+1016,4/4/25,C006,Sneha Rao,Electronics,Bluetooth Speaker,JBL,4200,1,Credit Card,Mumbai
+1017,4/9/25,C007,Rohan Verma,Grocery,Flour,Aashirvaad,650,3,UPI,Delhi
+1018,4/14/25,C008,Anjali Shah,Clothing,Track Pants,Puma,1800,2,Debit Card,Bangalore
+1019,4/20/25,C009,Vikram Joshi,Electronics,Tablet,Samsung,18000,1,UPI,Pune
+1020,4/28/25,C010,Kavya Nair,Grocery,Biscuits,Parle,300,8,Cash,Hyderabad
+1011,5/3/25,C001,Rahul Sharma,Electronics,USB Cable,Anker,800,2,UPI,Mumbai
+1022,5/8/25,C002,Priya Singh,Clothing,Dress,Zara,3500,1,Credit Card,Delhi
+1023,5/13/25,C003,Amit Kumar,Grocery,Sugar,Madhur,500,4,Debit Card,Bangalore
+1024,5/19/25,C004,Neha Patel,Electronics,Charger,OnePlus,1200,2,UPI,Hyderabad
+1025,5/25/25,C005,Arjun Mehta,Clothing,Cap,Adidas,900,3,Cash,Pune
