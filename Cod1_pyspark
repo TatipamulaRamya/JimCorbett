@@ -1,0 +1,118 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, coalesce, concat_ws
+from pyspark.sql.types import IntegerType
+
+
+# ---------------------------------------------------------
+# 1. Load Employee Data
+# ---------------------------------------------------------
+def load_employee_data(spark: SparkSession, path1: str, path2: str):
+    employees_df = (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", True)
+        .csv(path1)
+    )
+
+    performance_df = (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", True)
+        .csv(path2)
+    )
+
+    # Ensure employee_id is IntegerType
+    employees_df = employees_df.withColumn(
+        "employee_id",
+        col("employee_id").cast(IntegerType())
+    )
+
+    performance_df = performance_df.withColumn(
+        "employee_id",
+        col("employee_id").cast(IntegerType())
+    )
+
+    return employees_df, performance_df
+
+
+# ---------------------------------------------------------
+# 2. Join Employee and Performance Data
+# ---------------------------------------------------------
+def join_employee_data(df1, df2):
+    return df1.join(
+        df2,
+        on="employee_id",
+        how="inner"
+    )
+
+
+# ---------------------------------------------------------
+# 3. Enrich Missing Employee Names
+# ---------------------------------------------------------
+def enrich_employee_name(df):
+    return df.withColumn(
+        "full_name",
+        coalesce(
+            col("full_name"),
+            concat_ws(" ", col("first_name"), col("last_name"))
+        )
+    )
+
+
+# ---------------------------------------------------------
+# 4. Find Underperforming Employees
+# ---------------------------------------------------------
+def find_underperforming_employees(df):
+    return (
+        df.filter(col("rating") == "Poor")
+          .select("full_name", "department", "rating")
+    )
+
+
+# ---------------------------------------------------------
+# Main Execution
+# ---------------------------------------------------------
+
+spark = (
+    SparkSession.builder
+    .appName("EmployeePerformance")
+    .getOrCreate()
+)
+
+# Change these paths according to your files
+employees_df, performance_df = load_employee_data(
+    spark,
+    "data/employees.csv",
+    "data/performance.csv"
+)
+
+joined_df = join_employee_data(
+    employees_df,
+    performance_df
+)
+
+enriched_df = enrich_employee_name(
+    joined_df
+)
+
+underperforming_df = find_underperforming_employees(
+    enriched_df
+)
+
+# Display results
+print("Employee Data:")
+employees_df.show()
+
+print("Performance Data:")
+performance_df.show()
+
+print("Joined Data:")
+joined_df.show()
+
+print("Enriched Data:")
+enriched_df.show()
+
+print("Underperforming Employees:")
+underperforming_df.show()
+
+spark.stop()
