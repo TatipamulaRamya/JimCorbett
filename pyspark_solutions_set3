@@ -896,7 +896,6 @@ def flag_service_due(
     )
 
 
-#Q777 — Clinic Appointment Wait-Time Assessment
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
@@ -907,7 +906,7 @@ from pyspark.sql.types import (
 
 
 # ============================================================
-# 1. Load Appointment Data
+# 1. LOAD APPOINTMENT DATA
 # ============================================================
 
 def load_appointment_data(
@@ -952,48 +951,45 @@ def load_appointment_data(
         )
     ])
 
-    return spark.read.csv(
+    df = spark.read.csv(
         "data/appointments.csv",
         header=True,
         schema=schema
     )
 
+    return df
+
 
 # ============================================================
-# 2. Append Wait Minutes
+# 2. APPEND WAIT MINUTES
 # ============================================================
 
 def append_wait_minutes(
     df: DataFrame
 ) -> DataFrame:
 
-    scheduled = F.to_timestamp(
+    scheduled = F.unix_timestamp(
         F.col("scheduled_time"),
         "yyyy-MM-dd HH:mm:ss"
     )
 
-    actual = F.to_timestamp(
+    actual = F.unix_timestamp(
         F.col("actual_time"),
         "yyyy-MM-dd HH:mm:ss"
     )
 
-    wait_seconds = (
-        F.unix_timestamp(actual) -
-        F.unix_timestamp(scheduled)
-    )
-
     wait_minutes = F.floor(
-        wait_seconds / 60
-    )
+        (actual - scheduled) / 60
+    ).cast("int")
 
     return df.withColumn(
         "wait_minutes",
-        wait_minutes.cast("int")
+        wait_minutes
     )
 
 
 # ============================================================
-# 3. Get Long Wait Appointments
+# 3. GET LONG WAIT APPOINTMENTS
 # ============================================================
 
 def get_long_wait_appointments(
@@ -1001,7 +997,24 @@ def get_long_wait_appointments(
     threshold_minutes: int
 ) -> DataFrame:
 
-    df = append_wait_minutes(df)
+    scheduled = F.unix_timestamp(
+        F.col("scheduled_time"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    actual = F.unix_timestamp(
+        F.col("actual_time"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    wait_minutes = F.floor(
+        (actual - scheduled) / 60
+    ).cast("int")
+
+    df = df.withColumn(
+        "wait_minutes",
+        wait_minutes
+    )
 
     return df.filter(
         F.col("wait_minutes") >
@@ -1010,14 +1023,14 @@ def get_long_wait_appointments(
 
 
 # ============================================================
-# 4. Most Delayed Doctor
+# 4. MOST DELAYED DOCTOR
 # ============================================================
 
 def most_delayed_doctor(
     df_with_wait: DataFrame
 ) -> DataFrame:
 
-    return (
+    result = (
         df_with_wait
         .groupBy("doctor")
         .agg(
@@ -1032,9 +1045,14 @@ def most_delayed_doctor(
         .limit(1)
     )
 
+    return result.select(
+        "doctor",
+        "total_wait"
+    )
+
 
 # ============================================================
-# 5. Long Wait Percentage
+# 5. LONG WAIT PERCENTAGE
 # ============================================================
 
 def long_wait_percentage(
@@ -1046,7 +1064,7 @@ def long_wait_percentage(
     if total_count == 0:
         return 0.0
 
-    long_count = (
+    long_wait_count = (
         df_with_wait
         .filter(
             F.col("wait_minutes") > 30
@@ -1055,7 +1073,7 @@ def long_wait_percentage(
     )
 
     percentage = (
-        long_count /
+        long_wait_count /
         total_count
     ) * 100
 
@@ -1063,14 +1081,14 @@ def long_wait_percentage(
 
 
 # ============================================================
-# 6. Most Delayed Appointment
+# 6. MOST DELAYED APPOINTMENT
 # ============================================================
 
 def most_delayed_appointment(
     df_with_wait: DataFrame
 ) -> tuple[str, int]:
 
-    row = (
+    rows = (
         df_with_wait
         .select(
             "appointment_id",
@@ -1080,27 +1098,27 @@ def most_delayed_appointment(
             F.col("wait_minutes").desc(),
             F.col("appointment_id").asc()
         )
-        .first()
+        .collect()
     )
 
-    if row is None:
+    if not rows:
         return ("", 0)
 
     return (
-        str(row["appointment_id"]),
-        int(row["wait_minutes"])
+        str(rows[0]["appointment_id"]),
+        int(rows[0]["wait_minutes"])
     )
 
 
 # ============================================================
-# 7. Average Wait By Department
+# 7. AVERAGE WAIT BY DEPARTMENT
 # ============================================================
 
 def avg_wait_by_department(
     df_with_wait: DataFrame
 ) -> DataFrame:
 
-    return (
+    result = (
         df_with_wait
         .groupBy("department")
         .agg(
@@ -1114,9 +1132,14 @@ def avg_wait_by_department(
         )
     )
 
+    return result.select(
+        "department",
+        "avg_wait_minutes"
+    )
+
 
 # ============================================================
-# 8. Top N Patients By Wait
+# 8. TOP N PATIENTS BY WAIT
 # ============================================================
 
 def top_n_patients_by_wait(
@@ -1124,7 +1147,7 @@ def top_n_patients_by_wait(
     n: int
 ) -> DataFrame:
 
-    return (
+    result = (
         df_with_wait
         .groupBy("patient_id")
         .agg(
@@ -1139,16 +1162,21 @@ def top_n_patients_by_wait(
         .limit(n)
     )
 
+    return result.select(
+        "patient_id",
+        "total_wait_minutes"
+    )
+
 
 # ============================================================
-# 9. Wait Reason Counts
+# 9. WAIT REASON COUNTS
 # ============================================================
 
 def wait_reason_counts(
     df: DataFrame
 ) -> DataFrame:
 
-    return (
+    result = (
         df.groupBy("wait_reason")
         .agg(
             F.count("*").alias(
@@ -1159,8 +1187,9 @@ def wait_reason_counts(
             F.col("reason_count").desc(),
             F.col("wait_reason").asc()
         )
-        .select(
-            "wait_reason",
-            "reason_count"
-        )
+    )
+
+    return result.select(
+        "wait_reason",
+        "reason_count"
     )
