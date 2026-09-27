@@ -737,4 +737,117 @@ def wait_reason_counts(
         )
     )
 
+#Insurance Claims Policy Insights
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType
+)
+from pyspark.sql.functions import (
+    to_date,
+    col,
+    sum as spark_sum
+)
+
+def define_claim_schema() -> StructType:
+    return StructType([
+        StructField("claim_id", StringType(), True),
+        StructField("policy_id", StringType(), True),
+        StructField("customer_id", StringType(), True),
+        StructField("claim_amount", DoubleType(), True),
+        StructField("claim_status", StringType(), True),
+        StructField("claim_date", StringType(), True)
+    ])
+
+def load_claims_data(
+    spark: SparkSession,
+    path: str,
+    schema: StructType
+) -> DataFrame:
+
+    df = (
+        spark.read
+        .option("header", True)
+        .schema(schema)
+        .csv(path)
+    )
+
+    df = df.withColumn(
+        "claim_date",
+        to_date(col("claim_date"), "yyyy-MM-dd")
+    )
+
+    return df
+
+def load_policy_data(
+    spark: SparkSession,
+    path: str
+) -> DataFrame:
+
+    return (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", True)
+        .csv(path)
+    )
+
+def join_claims_with_policies(
+    claims_df: DataFrame,
+    policies_df: DataFrame
+) -> DataFrame:
+
+    return (
+        claims_df
+        .join(
+            policies_df,
+            on="policy_id",
+            how="inner"
+        )
+        .select(
+            "claim_id",
+            "policy_id",
+            "customer_id",
+            "claim_amount",
+            "claim_status",
+            "claim_date",
+            "policy_type",
+            "region",
+            "annual_premium"
+        )
+    )
+
+def policy_type_with_highest_approved_claim_amount(
+    df: DataFrame
+) -> tuple[str, float]:
+
+    result_df = (
+        df
+        .filter(col("claim_status") == "Approved")
+        .filter(
+            col("policy_type").isNotNull()
+            & (col("policy_type") != "")
+        )
+        .filter(col("claim_amount").isNotNull())
+        .groupBy("policy_type")
+        .agg(
+            spark_sum("claim_amount")
+            .alias("total_approved_claim_amount")
+        )
+        .orderBy(
+            col("total_approved_claim_amount").desc(),
+            col("policy_type").asc()
+        )
+    )
+
+    row = result_df.first()
+
+    if row is None:
+        return ("", 0.0)
+
+    return (
+        row["policy_type"],
+        float(row["total_approved_claim_amount"])
+    )
 
