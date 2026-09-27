@@ -114,8 +114,8 @@ def filter_peak_hour_trips(
     )
 
     return df.filter(
-        ((hour >= 7) & (hour <= 10)) |
-        ((hour >= 17) & (hour <= 20))
+        hour.between(7, 10)|
+        hour.between(17, 20)
     )
 
 
@@ -166,13 +166,13 @@ def most_common_vehicle_type(
             F.col("count").desc(),
             F.col("vehicle_type").asc()
         )
-        .first()
+        .collect()
     )
 
     if row is None:
         return ""
 
-    return str(row["vehicle_type"])
+    return str(row[0]["vehicle_type"])
 
 
 # 10. Cancellation Rate By Zone
@@ -192,16 +192,17 @@ def cancellation_rate_by_zone(
         ).alias("cancelled")
     )
 
-    return result.select(
-        "zone",
+    result=result.withColumn(
+        "cancellation_rate",
         (
             F.col("cancelled") /
             F.col("total")
-        ).cast("double").alias(
-            "cancellation_rate"
-        )
+        ).cast("double")
     )
-
+    return result.select(
+        "zone",
+        "cancellation_rate"
+    )
 
 # 11. High Duration Trips
 def high_duration_trips(
@@ -285,14 +286,14 @@ def top_vehicle_by_net_revenue(
         )
     )
 
-    row = result.first()
+    row = result.collect()
 
     if row is None:
         return ("", 0.0)
 
     return (
-        str(row["vehicle_id"]),
-        float(row["total_net_revenue"])
+        str(row[0]["vehicle_id"]),
+        float(row[0]["total_net_revenue"])
     )
 
 
@@ -415,15 +416,15 @@ def get_longest_trip(
             F.col("trip_duration_min").desc(),
             F.col("trip_id").asc()
         )
-        .first()
+        .collect()
     )
 
     if row is None:
         return ("", 0)
 
     return (
-        str(row["trip_id"]),
-        int(row["trip_duration_min"])
+        str(row[0]["trip_id"]),
+        int(row[0]["trip_duration_min"])
     )
 
 
@@ -624,15 +625,15 @@ def busiest_zone_by_trips(
             F.col("count").desc(),
             F.col("zone").asc()
         )
-        .first()
+        .collect()
     )
 
     if row is None:
         return ("", 0)
 
     return (
-        str(row["zone"]),
-        int(row["count"])
+        str(row[0]["zone"]),
+        int(row[0]["count"])
     )
 
 
@@ -761,7 +762,7 @@ def detect_outlier_fares(
 ) -> DataFrame:
 
     row = df.agg(
-        F.mean("fare").alias("mean_fare"),
+        F.avg("fare").alias("mean_fare"),
         F.stddev_pop("fare").alias("std_fare")
     ).first()
 
