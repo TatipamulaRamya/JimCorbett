@@ -1,0 +1,589 @@
+#Q402 Telecom Usage & Profile Enrichment
+from typing import List, Tuple
+
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    IntegerType,
+    DoubleType
+)
+
+
+# ============================================================
+# 1. DEFINE SCHEMA
+# ============================================================
+
+def define_schema() -> StructType:
+
+    return StructType([
+        StructField("event_id", StringType(), True),
+        StructField("user_id", IntegerType(), True),
+        StructField("plan", StringType(), True),
+        StructField("city", StringType(), True),
+        StructField("event_date", StringType(), True),
+        StructField("data_mb", DoubleType(), True),
+        StructField("voice_minutes", DoubleType(), True),
+        StructField("sms_count", IntegerType(), True),
+        StructField("roaming", StringType(), True),
+        StructField("device_type", StringType(), True),
+        StructField("dropped_calls", IntegerType(), True),
+        StructField("latency_ms", IntegerType(), True)
+    ])
+
+
+# ============================================================
+# 2. LOAD DATA
+# ============================================================
+
+def load_data(
+    spark: SparkSession,
+    path: str,
+    schema: StructType
+) -> DataFrame:
+
+    return spark.read.csv(
+        path,
+        header=True,
+        schema=schema
+    )
+
+
+# ============================================================
+# 3. PARSE EVENT DATE
+# ============================================================
+
+def parse_event_date(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "event_date",
+        F.to_date(
+            F.col("event_date"),
+            "yyyy-MM-dd"
+        )
+    )
+
+
+# ============================================================
+# 4. ADD TOTAL ACTIVITY
+# ============================================================
+
+def add_total_activity(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "total_activity",
+        F.col("voice_minutes") +
+        F.col("sms_count")
+    )
+
+
+# ============================================================
+# 5. ADD USAGE SCORE
+# ============================================================
+
+def add_usage_score(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "usage_score",
+        F.col("data_mb") +
+        (F.col("voice_minutes") * 0.5) +
+        (F.col("sms_count") * 0.1)
+    )
+
+
+# ============================================================
+# 6. FILTER ROAMING EVENTS
+# ============================================================
+
+def filter_roaming_events(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.filter(
+        F.col("roaming") == "Y"
+    )
+
+
+# ============================================================
+# 7. TOP N USERS BY DATA
+# ============================================================
+
+def top_n_users_by_data(
+    df: DataFrame,
+    n: int
+) -> DataFrame:
+
+    return (
+        df.groupBy("user_id")
+        .agg(
+            F.sum("data_mb").alias(
+                "total_data_mb"
+            )
+        )
+        .orderBy(
+            F.col("total_data_mb").desc(),
+            F.col("user_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# ============================================================
+# 8. AVERAGE LATENCY BY CITY
+# ============================================================
+
+def avg_latency_by_city(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("city")
+        .agg(
+            F.avg("latency_ms").alias(
+                "avg_latency_ms"
+            )
+        )
+    )
+
+
+# ============================================================
+# 9. MOST USED PLAN
+# ============================================================
+
+def most_used_plan(
+    df: DataFrame
+) -> str:
+
+    row = (
+        df.groupBy("plan")
+        .count()
+        .orderBy(
+            F.col("count").desc(),
+            F.col("plan").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ""
+
+    return str(row["plan"])
+
+
+# ============================================================
+# 10. DROPPED CALL RATE BY PLAN
+# ============================================================
+
+def dropped_call_rate_by_plan(
+    df: DataFrame
+) -> DataFrame:
+
+    result = (
+        df.groupBy("plan")
+        .agg(
+            F.count("*").alias(
+                "total_calls"
+            ),
+            F.sum(
+                "dropped_calls"
+            ).alias(
+                "dropped_total"
+            )
+        )
+    )
+
+    return result.select(
+        "plan",
+        (
+            F.col("dropped_total") /
+            F.col("total_calls")
+        ).cast("double").alias(
+            "dropped_call_rate"
+        )
+    )
+
+
+# ============================================================
+# 11. HIGH LATENCY EVENTS
+# ============================================================
+
+def high_latency_events(
+    df: DataFrame,
+    threshold: int
+) -> DataFrame:
+
+    return df.filter(
+        F.col("latency_ms") > threshold
+    )
+
+
+# ============================================================
+# 12. COUNT USERS PER CITY
+# ============================================================
+
+def count_users_per_city(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("city")
+        .agg(
+            F.countDistinct("user_id").alias(
+                "user_count"
+            )
+        )
+    )
+
+
+# ============================================================
+# 13. DAILY DATA TREND
+# ============================================================
+
+def daily_data_trend(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("event_date")
+        .agg(
+            F.sum("data_mb").alias(
+                "daily_data_mb"
+            )
+        )
+        .orderBy(
+            F.col("event_date").asc()
+        )
+    )
+
+
+# ============================================================
+# 14. TOP DEVICE BY USAGE SCORE
+# ============================================================
+
+def top_device_by_usage_score(
+    df: DataFrame
+) -> str:
+
+    row = (
+        df.groupBy("device_type")
+        .agg(
+            F.sum("usage_score").alias(
+                "total_usage_score"
+            )
+        )
+        .orderBy(
+            F.col("total_usage_score").desc(),
+            F.col("device_type").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ""
+
+    return str(row["device_type"])
+
+
+# ============================================================
+# 15. LIST CITIES
+# ============================================================
+
+def list_cities(
+    df: DataFrame
+) -> List[str]:
+
+    rows = (
+        df.select("city")
+        .distinct()
+        .collect()
+    )
+
+    cities = [
+        str(row["city"])
+        for row in rows
+        if row["city"] is not None
+    ]
+
+    return sorted(cities)
+
+
+# ============================================================
+# 16. EVENTS IN DATE RANGE
+# ============================================================
+
+def events_in_date_range(
+    df: DataFrame,
+    start: str,
+    end: str
+) -> DataFrame:
+
+    start_date = F.to_date(
+        F.lit(start),
+        "yyyy-MM-dd"
+    )
+
+    end_date = F.to_date(
+        F.lit(end),
+        "yyyy-MM-dd"
+    )
+
+    return df.filter(
+        F.col("event_date").between(
+            start_date,
+            end_date
+        )
+    )
+
+
+# ============================================================
+# 17. FLAG NETWORK RISK
+# ============================================================
+
+def flag_network_risk(
+    df: DataFrame,
+    latency_threshold: int,
+    drop_threshold: int
+) -> DataFrame:
+
+    return df.withColumn(
+        "is_risky",
+        (
+            (F.col("latency_ms") > latency_threshold) |
+            (
+                F.col("dropped_calls") >
+                drop_threshold
+            )
+        )
+    )
+
+
+# ============================================================
+# 18. TOP N RISKY USERS
+# ============================================================
+
+def top_n_risky_users(
+    df: DataFrame,
+    n: int
+) -> DataFrame:
+
+    return (
+        df.filter(
+            F.col("is_risky") == True
+        )
+        .groupBy("user_id")
+        .agg(
+            F.count("*").alias(
+                "risky_count"
+            )
+        )
+        .orderBy(
+            F.col("risky_count").desc(),
+            F.col("user_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# ============================================================
+# 19. AVERAGE DATA PER PLAN
+# ============================================================
+
+def avg_data_per_plan(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("plan")
+        .agg(
+            F.avg("data_mb").alias(
+                "avg_data_mb"
+            )
+        )
+    )
+
+
+# ============================================================
+# 20. GET HEAVIEST USER
+# ============================================================
+
+def get_heaviest_user(
+    df: DataFrame
+) -> Tuple[int, float]:
+
+    row = (
+        df.groupBy("user_id")
+        .agg(
+            F.sum("data_mb").alias(
+                "total_data_mb"
+            )
+        )
+        .orderBy(
+            F.col("total_data_mb").desc(),
+            F.col("user_id").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return (0, 0.0)
+
+    return (
+        int(row["user_id"]),
+        float(row["total_data_mb"])
+    )
+
+
+# ============================================================
+# 21. DEFINE PROFILE SCHEMA
+# ============================================================
+
+def define_profile_schema() -> StructType:
+
+    return StructType([
+        StructField("user_id", IntegerType(), True),
+        StructField("first_name", StringType(), True),
+        StructField("last_name", StringType(), True),
+        StructField("full_name", StringType(), True),
+        StructField("plan_id", StringType(), True)
+    ])
+
+
+# ============================================================
+# 22. DEFINE PLAN SCHEMA
+# ============================================================
+
+def define_plan_schema() -> StructType:
+
+    return StructType([
+        StructField("plan_id", StringType(), True),
+        StructField("plan_name", StringType(), True)
+    ])
+
+
+# ============================================================
+# 23. LOAD INLINE PROFILE DATA
+# ============================================================
+
+def load_inline_profile_data(
+    spark: SparkSession,
+    profile_schema: StructType,
+    plan_schema: StructType
+) -> tuple:
+
+    profiles_rows = [
+        (201, "Aarav", "Iyer", None, "P1"),
+        (202, "Diya", "Sharma", "Diya Sharma", "P2"),
+        (203, "Kabir", "Mehta", None, "P2"),
+        (204, "Meera", "Nair", None, "P3"),
+        (205, "Rohan", "Singh", "Rohan S.", "P3"),
+        (206, "Sara", "Khan", None, "P99")
+    ]
+
+    plans_rows = [
+        ("P1", "Basic"),
+        ("P2", "Plus"),
+        ("P3", "Premium")
+    ]
+
+    profiles_df = spark.createDataFrame(
+        profiles_rows,
+        schema=profile_schema
+    )
+
+    plans_df = spark.createDataFrame(
+        plans_rows,
+        schema=plan_schema
+    )
+
+    return profiles_df, plans_df
+
+
+# ============================================================
+# 24. JOIN PROFILE + PLAN
+# ============================================================
+
+def join_profile_plan(
+    profiles_df: DataFrame,
+    plans_df: DataFrame
+) -> DataFrame:
+
+    return (
+        profiles_df
+        .join(
+            plans_df,
+            on="plan_id",
+            how="left"
+        )
+        .select(
+            "user_id",
+            "first_name",
+            "last_name",
+            "full_name",
+            "plan_id",
+            "plan_name"
+        )
+    )
+
+
+# ============================================================
+# 25. ENRICH FULL NAME
+# ============================================================
+
+def enrich_full_name(
+    profile_joined_df: DataFrame
+) -> DataFrame:
+
+    return profile_joined_df.withColumn(
+        "full_name",
+        F.when(
+            F.col("full_name").isNull(),
+            F.concat_ws(
+                " ",
+                F.col("first_name"),
+                F.col("last_name")
+            )
+        ).otherwise(
+            F.col("full_name")
+        )
+    )
+
+
+# ============================================================
+# 26. ADD EVENT EPOCH SECONDS
+# ============================================================
+
+def add_event_epoch_seconds(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "event_epoch_seconds",
+        F.unix_timestamp(
+            F.col("event_date"),
+            "yyyy-MM-dd"
+        ).cast("long")
+    )
+
+
+# ============================================================
+# 27. ADD EVENT TIMESTAMP FROM EPOCH
+# ============================================================
+
+def add_event_ts_from_epoch(
+    epoch_df: DataFrame
+) -> DataFrame:
+
+    return epoch_df.withColumn(
+        "event_ts",
+        F.from_unixtime(
+            F.col("event_epoch_seconds")
+        ).cast("timestamp")
+    )
