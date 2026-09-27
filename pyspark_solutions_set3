@@ -894,3 +894,273 @@ def flag_service_due(
         "is_service_due",
         days_since_service > due_days
     )
+
+
+#Q777 — Clinic Appointment Wait-Time Assessment
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType
+)
+
+
+# ============================================================
+# 1. Load Appointment Data
+# ============================================================
+
+def load_appointment_data(
+    spark: SparkSession
+) -> DataFrame:
+
+    schema = StructType([
+        StructField(
+            "appointment_id",
+            StringType(),
+            True
+        ),
+        StructField(
+            "patient_id",
+            StringType(),
+            True
+        ),
+        StructField(
+            "doctor",
+            StringType(),
+            True
+        ),
+        StructField(
+            "department",
+            StringType(),
+            True
+        ),
+        StructField(
+            "scheduled_time",
+            StringType(),
+            True
+        ),
+        StructField(
+            "actual_time",
+            StringType(),
+            True
+        ),
+        StructField(
+            "wait_reason",
+            StringType(),
+            True
+        )
+    ])
+
+    return spark.read.csv(
+        "data/appointments.csv",
+        header=True,
+        schema=schema
+    )
+
+
+# ============================================================
+# 2. Append Wait Minutes
+# ============================================================
+
+def append_wait_minutes(
+    df: DataFrame
+) -> DataFrame:
+
+    scheduled = F.to_timestamp(
+        F.col("scheduled_time"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    actual = F.to_timestamp(
+        F.col("actual_time"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    wait_seconds = (
+        F.unix_timestamp(actual) -
+        F.unix_timestamp(scheduled)
+    )
+
+    wait_minutes = F.floor(
+        wait_seconds / 60
+    )
+
+    return df.withColumn(
+        "wait_minutes",
+        wait_minutes.cast("int")
+    )
+
+
+# ============================================================
+# 3. Get Long Wait Appointments
+# ============================================================
+
+def get_long_wait_appointments(
+    df: DataFrame,
+    threshold_minutes: int
+) -> DataFrame:
+
+    df = append_wait_minutes(df)
+
+    return df.filter(
+        F.col("wait_minutes") >
+        threshold_minutes
+    )
+
+
+# ============================================================
+# 4. Most Delayed Doctor
+# ============================================================
+
+def most_delayed_doctor(
+    df_with_wait: DataFrame
+) -> DataFrame:
+
+    return (
+        df_with_wait
+        .groupBy("doctor")
+        .agg(
+            F.sum("wait_minutes").alias(
+                "total_wait"
+            )
+        )
+        .orderBy(
+            F.col("total_wait").desc(),
+            F.col("doctor").asc()
+        )
+        .limit(1)
+    )
+
+
+# ============================================================
+# 5. Long Wait Percentage
+# ============================================================
+
+def long_wait_percentage(
+    df_with_wait: DataFrame
+) -> float:
+
+    total_count = df_with_wait.count()
+
+    if total_count == 0:
+        return 0.0
+
+    long_count = (
+        df_with_wait
+        .filter(
+            F.col("wait_minutes") > 30
+        )
+        .count()
+    )
+
+    percentage = (
+        long_count /
+        total_count
+    ) * 100
+
+    return float(percentage)
+
+
+# ============================================================
+# 6. Most Delayed Appointment
+# ============================================================
+
+def most_delayed_appointment(
+    df_with_wait: DataFrame
+) -> tuple[str, int]:
+
+    row = (
+        df_with_wait
+        .select(
+            "appointment_id",
+            "wait_minutes"
+        )
+        .orderBy(
+            F.col("wait_minutes").desc(),
+            F.col("appointment_id").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ("", 0)
+
+    return (
+        str(row["appointment_id"]),
+        int(row["wait_minutes"])
+    )
+
+
+# ============================================================
+# 7. Average Wait By Department
+# ============================================================
+
+def avg_wait_by_department(
+    df_with_wait: DataFrame
+) -> DataFrame:
+
+    return (
+        df_with_wait
+        .groupBy("department")
+        .agg(
+            F.avg("wait_minutes").alias(
+                "avg_wait_minutes"
+            )
+        )
+        .orderBy(
+            F.col("avg_wait_minutes").desc(),
+            F.col("department").asc()
+        )
+    )
+
+
+# ============================================================
+# 8. Top N Patients By Wait
+# ============================================================
+
+def top_n_patients_by_wait(
+    df_with_wait: DataFrame,
+    n: int
+) -> DataFrame:
+
+    return (
+        df_with_wait
+        .groupBy("patient_id")
+        .agg(
+            F.sum("wait_minutes").alias(
+                "total_wait_minutes"
+            )
+        )
+        .orderBy(
+            F.col("total_wait_minutes").desc(),
+            F.col("patient_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# ============================================================
+# 9. Wait Reason Counts
+# ============================================================
+
+def wait_reason_counts(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("wait_reason")
+        .agg(
+            F.count("*").alias(
+                "reason_count"
+            )
+        )
+        .orderBy(
+            F.col("reason_count").desc(),
+            F.col("wait_reason").asc()
+        )
+        .select(
+            "wait_reason",
+            "reason_count"
+        )
+    )
