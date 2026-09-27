@@ -1,0 +1,1634 @@
+#EASY 1 — Precision Agriculture Field Inspection
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, to_date, year, month, avg
+
+
+# ---------------------------------------------------------
+# Function 1: Load Field Inspections
+# ---------------------------------------------------------
+def load_field_inspections(
+    spark: SparkSession,
+    path: str
+) -> DataFrame:
+
+    df = spark.read.csv(
+        path,
+        header=True,
+        inferSchema=True
+    )
+
+    df = df.withColumn(
+        "inspection_date",
+        to_date(col("inspection_date"), "yyyy-MM-dd")
+    )
+
+    return df
+
+
+# ---------------------------------------------------------
+# Function 2: Drop Incomplete Inspections
+# ---------------------------------------------------------
+def drop_incomplete_inspections(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.dropna(
+        subset=[
+            "inspection_id",
+            "field_id",
+            "moisture_level"
+        ]
+    )
+
+
+# ---------------------------------------------------------
+# Function 3: Fill Missing Inspector
+# ---------------------------------------------------------
+def fill_missing_inspector(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.fillna(
+        {"inspector_name": "Unknown"}
+    )
+
+
+# ---------------------------------------------------------
+# Function 4: Add Inspection Year and Month
+# ---------------------------------------------------------
+def add_inspection_year_month(
+    df: DataFrame
+) -> DataFrame:
+
+    df = df.withColumn(
+        "inspection_year",
+        year(col("inspection_date"))
+    )
+
+    df = df.withColumn(
+        "inspection_month",
+        month(col("inspection_date"))
+    )
+
+    return df
+
+
+# ---------------------------------------------------------
+# Function 5: Average Moisture by Crop
+# ---------------------------------------------------------
+def average_moisture_by_crop(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.groupBy(
+        "crop_type"
+    ).agg(
+        avg("moisture_level").alias("avg_moisture")
+    ).select(
+        "crop_type",
+        "avg_moisture"
+    )
+
+#EASY 2 — Museum Artifact Catalog
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, to_date, year, month, sum
+
+
+# ---------------------------------------------------------
+# Function 1: Load Artifact Data
+# ---------------------------------------------------------
+def load_artifact_data(
+    spark: SparkSession,
+    path: str
+) -> DataFrame:
+
+    df = spark.read.csv(
+        path,
+        header=True,
+        inferSchema=True
+    )
+
+    df = df.withColumn(
+        "acquisition_date",
+        to_date(col("acquisition_date"), "yyyy-MM-dd")
+    )
+
+    return df
+
+
+# ---------------------------------------------------------
+# Function 2: Drop Records Without Acquisition Date
+# ---------------------------------------------------------
+def drop_records_without_acquisition_date(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.dropna(
+        subset=[
+            "artifact_id",
+            "acquisition_date"
+        ]
+    )
+
+
+# ---------------------------------------------------------
+# Function 3: Fill Missing Category
+# ---------------------------------------------------------
+def fill_missing_category(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.fillna(
+        {"category": "Unclassified"}
+    )
+
+
+# ---------------------------------------------------------
+# Function 4: Add Acquisition Year and Month
+# ---------------------------------------------------------
+def add_acquisition_year_month(
+    df: DataFrame
+) -> DataFrame:
+
+    df = df.withColumn(
+        "acquisition_year",
+        year(col("acquisition_date"))
+    )
+
+    df = df.withColumn(
+        "acquisition_month",
+        month(col("acquisition_date"))
+    )
+
+    return df
+
+
+# ---------------------------------------------------------
+# Function 5: Highest Value Gallery
+# ---------------------------------------------------------
+def highest_value_gallery(
+    df: DataFrame
+) -> tuple:
+
+    result = df.groupBy(
+        "gallery"
+    ).agg(
+        sum("estimated_value").alias("total_value")
+    )
+
+    result = result.orderBy(
+        col("total_value").desc(),
+        col("gallery").asc()
+    )
+
+    row = result.first()
+
+    if row is None:
+        return ("", 0.0)
+
+    return (
+        row["gallery"],
+        float(row["total_value"])
+    )
+
+#MEDIUM 1 — Aircraft Maintenance Compliance Analytics
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType
+)
+from pyspark.sql.functions import (
+    col,
+    to_date,
+    sum,
+    rank
+)
+from pyspark.sql.window import Window
+
+
+# ---------------------------------------------------------
+# Function 1: Define Maintenance Schema
+# ---------------------------------------------------------
+def define_maintenance_schema() -> StructType:
+
+    schema = StructType([
+        StructField("maintenance_id", StringType(), True),
+        StructField("aircraft_id", StringType(), True),
+        StructField("maintenance_date", StringType(), True),
+        StructField("maintenance_cost", DoubleType(), True),
+        StructField("maintenance_status", StringType(), True)
+    ])
+
+    return schema
+
+
+# ---------------------------------------------------------
+# Function 2: Load Maintenance Data
+# ---------------------------------------------------------
+def load_maintenance_data(
+    spark: SparkSession,
+    path: str,
+    schema: StructType
+) -> DataFrame:
+
+    df = spark.read.csv(
+        path,
+        header=True,
+        schema=schema
+    )
+
+    df = df.withColumn(
+        "maintenance_date",
+        to_date(
+            col("maintenance_date"),
+            "yyyy-MM-dd"
+        )
+    )
+
+    return df
+
+
+# ---------------------------------------------------------
+# Function 3: Join Aircraft With Maintenance
+# ---------------------------------------------------------
+def join_aircraft_with_maintenance(
+    aircraft_df: DataFrame,
+    maintenance_df: DataFrame
+) -> DataFrame:
+
+    return aircraft_df.join(
+        maintenance_df,
+        on="aircraft_id",
+        how="inner"
+    )
+
+
+# ---------------------------------------------------------
+# Function 4: Aircraft Without Maintenance
+# ---------------------------------------------------------
+def aircraft_without_maintenance(
+    aircraft_df: DataFrame,
+    maintenance_df: DataFrame
+) -> DataFrame:
+
+    return aircraft_df.join(
+        maintenance_df,
+        on="aircraft_id",
+        how="left_anti"
+    )
+
+
+# ---------------------------------------------------------
+# Function 5: Rank Aircraft by Maintenance Cost
+# ---------------------------------------------------------
+def rank_aircraft_by_maintenance_cost(
+    df: DataFrame
+) -> DataFrame:
+
+    result = df.groupBy(
+        "aircraft_model",
+        "aircraft_id"
+    ).agg(
+        sum("maintenance_cost").alias(
+            "total_maintenance_cost"
+        )
+    )
+
+    window = Window.partitionBy(
+        "aircraft_model"
+    ).orderBy(
+        col("total_maintenance_cost").desc()
+    )
+
+    result = result.withColumn(
+        "maintenance_rank",
+        rank().over(window)
+    )
+
+    return result.select(
+        "aircraft_model",
+        "aircraft_id",
+        "total_maintenance_cost",
+        "maintenance_rank"
+    )
+
+#MEDIUM 2 — Film Production Crew Payment Analytics
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType
+)
+from pyspark.sql.functions import (
+    col,
+    to_date,
+    year,
+    month,
+    sum,
+    rank
+)
+from pyspark.sql.window import Window
+
+
+# ---------------------------------------------------------
+# Function 1: Define Payment Schema
+# ---------------------------------------------------------
+def define_payment_schema() -> StructType:
+
+    schema = StructType([
+        StructField("payment_id", StringType(), True),
+        StructField("crew_id", StringType(), True),
+        StructField("payment_date", StringType(), True),
+        StructField("payment_amount", DoubleType(), True),
+        StructField("payment_status", StringType(), True)
+    ])
+
+    return schema
+
+
+# ---------------------------------------------------------
+# Function 2: Load and Clean Payments
+# ---------------------------------------------------------
+def load_and_clean_payments(
+    spark: SparkSession,
+    path: str,
+    schema: StructType
+) -> DataFrame:
+
+    df = spark.read.csv(
+        path,
+        header=True,
+        schema=schema
+    )
+
+    # Convert date
+    df = df.withColumn(
+        "payment_date",
+        to_date(
+            col("payment_date"),
+            "yyyy-MM-dd"
+        )
+    )
+
+    # Remove incomplete records
+    df = df.dropna(
+        subset=[
+            "payment_id",
+            "crew_id",
+            "payment_amount"
+        ]
+    )
+
+    # Fill missing status
+    df = df.fillna(
+        {"payment_status": "Pending"}
+    )
+
+    # Add year
+    df = df.withColumn(
+        "payment_year",
+        year(col("payment_date"))
+    )
+
+    # Add month
+    df = df.withColumn(
+        "payment_month",
+        month(col("payment_date"))
+    )
+
+    return df
+
+
+# ---------------------------------------------------------
+# Function 3: Join Crew With Payments
+# ---------------------------------------------------------
+def join_crew_with_payments(
+    crew_df: DataFrame,
+    payments_df: DataFrame
+) -> DataFrame:
+
+    return crew_df.join(
+        payments_df,
+        on="crew_id",
+        how="inner"
+    )
+
+
+# ---------------------------------------------------------
+# Function 4: Crew Without Payments
+# ---------------------------------------------------------
+def crew_without_payments(
+    crew_df: DataFrame,
+    payments_df: DataFrame
+) -> DataFrame:
+
+    return crew_df.join(
+        payments_df,
+        on="crew_id",
+        how="left_anti"
+    )
+
+
+# ---------------------------------------------------------
+# Function 5: Rank Crew by Total Payment
+# ---------------------------------------------------------
+def rank_crew_by_total_payment(
+    df: DataFrame
+) -> DataFrame:
+
+    result = df.groupBy(
+        "department",
+        "crew_id",
+        "crew_name"
+    ).agg(
+        sum("payment_amount").alias(
+            "total_payment"
+        )
+    )
+
+    window = Window.partitionBy(
+        "department"
+    ).orderBy(
+        col("total_payment").desc()
+    )
+
+    result = result.withColumn(
+        "payment_rank",
+        rank().over(window)
+    )
+
+    return result.select(
+        "department",
+        "crew_id",
+        "crew_name",
+        "total_payment",
+        "payment_rank"
+    )
+
+#Q777 — Clinic Appointment Wait-Time Assessment
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType
+)
+
+
+# ============================================================
+# 1. Load Appointment Data
+# ============================================================
+
+def load_appointment_data(
+    spark: SparkSession
+) -> DataFrame:
+
+    schema = StructType([
+        StructField(
+            "appointment_id",
+            StringType(),
+            True
+        ),
+        StructField(
+            "patient_id",
+            StringType(),
+            True
+        ),
+        StructField(
+            "doctor",
+            StringType(),
+            True
+        ),
+        StructField(
+            "department",
+            StringType(),
+            True
+        ),
+        StructField(
+            "scheduled_time",
+            StringType(),
+            True
+        ),
+        StructField(
+            "actual_time",
+            StringType(),
+            True
+        ),
+        StructField(
+            "wait_reason",
+            StringType(),
+            True
+        )
+    ])
+
+    return spark.read.csv(
+        "data/appointments.csv",
+        header=True,
+        schema=schema
+    )
+
+
+# ============================================================
+# 2. Append Wait Minutes
+# ============================================================
+
+def append_wait_minutes(
+    df: DataFrame
+) -> DataFrame:
+
+    scheduled = F.to_timestamp(
+        F.col("scheduled_time"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    actual = F.to_timestamp(
+        F.col("actual_time"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    wait_seconds = (
+        F.unix_timestamp(actual) -
+        F.unix_timestamp(scheduled)
+    )
+
+    wait_minutes = F.floor(
+        wait_seconds / 60
+    )
+
+    return df.withColumn(
+        "wait_minutes",
+        wait_minutes.cast("int")
+    )
+
+
+# ============================================================
+# 3. Get Long Wait Appointments
+# ============================================================
+
+def get_long_wait_appointments(
+    df: DataFrame,
+    threshold_minutes: int
+) -> DataFrame:
+
+    df = append_wait_minutes(df)
+
+    return df.filter(
+        F.col("wait_minutes") >
+        threshold_minutes
+    )
+
+
+# ============================================================
+# 4. Most Delayed Doctor
+# ============================================================
+
+def most_delayed_doctor(
+    df_with_wait: DataFrame
+) -> DataFrame:
+
+    return (
+        df_with_wait
+        .groupBy("doctor")
+        .agg(
+            F.sum("wait_minutes").alias(
+                "total_wait"
+            )
+        )
+        .orderBy(
+            F.col("total_wait").desc(),
+            F.col("doctor").asc()
+        )
+        .limit(1)
+    )
+
+
+# ============================================================
+# 5. Long Wait Percentage
+# ============================================================
+
+def long_wait_percentage(
+    df_with_wait: DataFrame
+) -> float:
+
+    total_count = df_with_wait.count()
+
+    if total_count == 0:
+        return 0.0
+
+    long_count = (
+        df_with_wait
+        .filter(
+            F.col("wait_minutes") > 30
+        )
+        .count()
+    )
+
+    percentage = (
+        long_count /
+        total_count
+    ) * 100
+
+    return float(percentage)
+
+
+# ============================================================
+# 6. Most Delayed Appointment
+# ============================================================
+
+def most_delayed_appointment(
+    df_with_wait: DataFrame
+) -> tuple[str, int]:
+
+    row = (
+        df_with_wait
+        .select(
+            "appointment_id",
+            "wait_minutes"
+        )
+        .orderBy(
+            F.col("wait_minutes").desc(),
+            F.col("appointment_id").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ("", 0)
+
+    return (
+        str(row["appointment_id"]),
+        int(row["wait_minutes"])
+    )
+
+
+# ============================================================
+# 7. Average Wait By Department
+# ============================================================
+
+def avg_wait_by_department(
+    df_with_wait: DataFrame
+) -> DataFrame:
+
+    return (
+        df_with_wait
+        .groupBy("department")
+        .agg(
+            F.avg("wait_minutes").alias(
+                "avg_wait_minutes"
+            )
+        )
+        .orderBy(
+            F.col("avg_wait_minutes").desc(),
+            F.col("department").asc()
+        )
+    )
+
+
+# ============================================================
+# 8. Top N Patients By Wait
+# ============================================================
+
+def top_n_patients_by_wait(
+    df_with_wait: DataFrame,
+    n: int
+) -> DataFrame:
+
+    return (
+        df_with_wait
+        .groupBy("patient_id")
+        .agg(
+            F.sum("wait_minutes").alias(
+                "total_wait_minutes"
+            )
+        )
+        .orderBy(
+            F.col("total_wait_minutes").desc(),
+            F.col("patient_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# ============================================================
+# 9. Wait Reason Counts
+# ============================================================
+
+def wait_reason_counts(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("wait_reason")
+        .agg(
+            F.count("*").alias(
+                "reason_count"
+            )
+        )
+        .orderBy(
+            F.col("reason_count").desc(),
+            F.col("wait_reason").asc()
+        )
+        .select(
+            "wait_reason",
+            "reason_count"
+        )
+    )
+
+#Q1000 — SmartCity Mobility Mega Assessment
+from typing import List, Tuple
+
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType,
+    IntegerType
+)
+from pyspark.sql.window import Window
+
+
+# ============================================================
+# A) CORE TRIP ANALYTICS
+# ============================================================
+
+# 1. Define Trip Schema
+def define_trip_schema() -> StructType:
+
+    return StructType([
+        StructField("trip_id", StringType(), True),
+        StructField("user_id", StringType(), True),
+        StructField("vehicle_id", StringType(), True),
+        StructField("zone", StringType(), True),
+        StructField("trip_date", StringType(), True),
+        StructField("start_ts", StringType(), True),
+        StructField("end_ts", StringType(), True),
+        StructField("distance_km", DoubleType(), True),
+        StructField("fare", DoubleType(), True),
+        StructField("discount", DoubleType(), True),
+        StructField("payment_method", StringType(), True),
+        StructField("vehicle_type", StringType(), True),
+        StructField("speed_kmh", DoubleType(), True),
+        StructField("harsh_brake_count", IntegerType(), True),
+        StructField("status", StringType(), True)
+    ])
+
+
+# 2. Load Trips
+def load_trips(
+    spark: SparkSession,
+    path: str,
+    schema: StructType
+) -> DataFrame:
+
+    return spark.read.csv(
+        path,
+        header=True,
+        schema=schema
+    )
+
+
+# 3. Parse Trip Date
+def parse_trip_date(df: DataFrame) -> DataFrame:
+
+    return df.withColumn(
+        "trip_date",
+        F.to_date(
+            F.col("trip_date"),
+            "yyyy-MM-dd"
+        )
+    )
+
+
+# 4. Add Trip Duration
+def add_trip_duration_min(df: DataFrame) -> DataFrame:
+
+    start = F.to_timestamp(
+        F.col("start_ts"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    end = F.to_timestamp(
+        F.col("end_ts"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+
+    duration = (
+        F.unix_timestamp(end)
+        - F.unix_timestamp(start)
+    ) / 60
+
+    return df.withColumn(
+        "trip_duration_min",
+        F.round(duration).cast("int")
+    )
+
+
+# 5. Add Cost Per KM
+def add_cost_per_km(df: DataFrame) -> DataFrame:
+
+    return df.withColumn(
+        "cost_per_km",
+        (
+            F.col("fare") /
+            F.col("distance_km")
+        ).cast("double")
+    )
+
+
+# 6. Filter Peak Hour Trips
+def filter_peak_hour_trips(
+    df: DataFrame
+) -> DataFrame:
+
+    hour = F.hour(
+        F.to_timestamp(
+            F.col("start_ts"),
+            "yyyy-MM-dd HH:mm:ss"
+        )
+    )
+
+    return df.filter(
+        ((hour >= 7) & (hour <= 10)) |
+        ((hour >= 17) & (hour <= 20))
+    )
+
+
+# 7. Top N Users By Distance
+def top_n_users_by_distance(
+    df: DataFrame,
+    n: int
+) -> DataFrame:
+
+    return (
+        df.groupBy("user_id")
+        .agg(
+            F.sum("distance_km").alias(
+                "total_distance_km"
+            )
+        )
+        .orderBy(
+            F.col("total_distance_km").desc(),
+            F.col("user_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# 8. Average Speed By Zone
+def avg_speed_by_zone(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.groupBy(
+        "zone"
+    ).agg(
+        F.avg("speed_kmh").alias(
+            "avg_speed_kmh"
+        )
+    )
+
+
+# 9. Most Common Vehicle Type
+def most_common_vehicle_type(
+    df: DataFrame
+) -> str:
+
+    row = (
+        df.groupBy("vehicle_type")
+        .count()
+        .orderBy(
+            F.col("count").desc(),
+            F.col("vehicle_type").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ""
+
+    return str(row["vehicle_type"])
+
+
+# 10. Cancellation Rate By Zone
+def cancellation_rate_by_zone(
+    df: DataFrame
+) -> DataFrame:
+
+    result = df.groupBy(
+        "zone"
+    ).agg(
+        F.count("*").alias("total"),
+        F.sum(
+            F.when(
+                F.col("status") == "Cancelled",
+                1
+            ).otherwise(0)
+        ).alias("cancelled")
+    )
+
+    return result.select(
+        "zone",
+        (
+            F.col("cancelled") /
+            F.col("total")
+        ).cast("double").alias(
+            "cancellation_rate"
+        )
+    )
+
+
+# 11. High Duration Trips
+def high_duration_trips(
+    df: DataFrame,
+    threshold_min: int
+) -> DataFrame:
+
+    if "trip_duration_min" not in df.columns:
+        df = add_trip_duration_min(df)
+
+    return df.filter(
+        F.col("trip_duration_min") >
+        threshold_min
+    )
+
+
+# 12. Count Active Vehicles By Zone
+def count_active_vehicles_by_zone(
+    vehicles_df: DataFrame
+) -> DataFrame:
+
+    return (
+        vehicles_df
+        .filter(F.col("status") == "Active")
+        .groupBy("home_zone")
+        .agg(
+            F.countDistinct("vehicle_id").alias(
+                "active_vehicles"
+            )
+        )
+        .withColumnRenamed(
+            "home_zone",
+            "zone"
+        )
+    )
+
+
+# 13. Daily Net Revenue Trend
+def daily_net_revenue_trend(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.withColumn(
+            "net_revenue",
+            F.col("fare") -
+            F.col("discount")
+        )
+        .groupBy("trip_date")
+        .agg(
+            F.sum("net_revenue").alias(
+                "daily_net_revenue"
+            )
+        )
+        .orderBy(
+            F.col("trip_date").asc()
+        )
+    )
+
+
+# 14. Top Vehicle By Net Revenue
+def top_vehicle_by_net_revenue(
+    df: DataFrame
+) -> Tuple[str, float]:
+
+    result = (
+        df.withColumn(
+            "net_revenue",
+            F.col("fare") -
+            F.col("discount")
+        )
+        .groupBy("vehicle_id")
+        .agg(
+            F.sum("net_revenue").alias(
+                "total_net_revenue"
+            )
+        )
+        .orderBy(
+            F.col("total_net_revenue").desc(),
+            F.col("vehicle_id").asc()
+        )
+    )
+
+    row = result.first()
+
+    if row is None:
+        return ("", 0.0)
+
+    return (
+        str(row["vehicle_id"]),
+        float(row["total_net_revenue"])
+    )
+
+
+# 15. List Zones
+def list_zones(
+    df: DataFrame
+) -> List[str]:
+
+    rows = (
+        df.select("zone")
+        .distinct()
+        .collect()
+    )
+
+    zones = [
+        str(row["zone"])
+        for row in rows
+        if row["zone"] is not None
+    ]
+
+    return sorted(zones)
+
+
+# 16. Trips In Date Range
+def trips_in_date_range(
+    df: DataFrame,
+    start: str,
+    end: str
+) -> DataFrame:
+
+    start_date = F.to_date(
+        F.lit(start),
+        "yyyy-MM-dd"
+    )
+
+    end_date = F.to_date(
+        F.lit(end),
+        "yyyy-MM-dd"
+    )
+
+    return df.filter(
+        F.col("trip_date").between(
+            start_date,
+            end_date
+        )
+    )
+
+
+# 17. Flag Safety Risk
+def flag_safety_risk(
+    df: DataFrame,
+    speed_threshold: float,
+    brake_threshold: int
+) -> DataFrame:
+
+    return df.withColumn(
+        "is_risky",
+        (
+            (F.col("speed_kmh") > speed_threshold) |
+            (
+                F.col("harsh_brake_count") >
+                brake_threshold
+            )
+        )
+    )
+
+
+# 18. Top N Risky Vehicles
+def top_n_risky_vehicles(
+    df: DataFrame,
+    n: int
+) -> DataFrame:
+
+    return (
+        df.filter(
+            F.col("is_risky") == True
+        )
+        .groupBy("vehicle_id")
+        .agg(
+            F.count("*").alias(
+                "risky_count"
+            )
+        )
+        .orderBy(
+            F.col("risky_count").desc(),
+            F.col("vehicle_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# 19. Average Fare By Payment Method
+def avg_fare_by_payment_method(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.groupBy(
+        "payment_method"
+    ).agg(
+        F.avg("fare").alias(
+            "avg_fare"
+        )
+    )
+
+
+# 20. Get Longest Trip
+def get_longest_trip(
+    df: DataFrame
+) -> Tuple[str, int]:
+
+    if "trip_duration_min" not in df.columns:
+        df = add_trip_duration_min(df)
+
+    row = (
+        df.select(
+            "trip_id",
+            "trip_duration_min"
+        )
+        .orderBy(
+            F.col("trip_duration_min").desc(),
+            F.col("trip_id").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ("", 0)
+
+    return (
+        str(row["trip_id"]),
+        int(row["trip_duration_min"])
+    )
+
+
+# ============================================================
+# B) INLINE JOIN + ENRICHMENT
+# ============================================================
+
+# 21. Define User Profile Schema
+def define_user_profile_schema() -> StructType:
+
+    return StructType([
+        StructField("user_id", StringType(), True),
+        StructField("first_name", StringType(), True),
+        StructField("last_name", StringType(), True),
+        StructField("full_name", StringType(), True),
+        StructField("plan_id", StringType(), True)
+    ])
+
+
+# 22. Define Vehicle/Plan Schema
+def define_vehicle_schema() -> StructType:
+
+    return StructType([
+        StructField("plan_id", StringType(), True),
+        StructField("plan_name", StringType(), True)
+    ])
+
+
+# 23. Load Inline Profiles And Plans
+def load_inline_profiles_and_plans(
+    spark: SparkSession,
+    profile_schema: StructType,
+    plan_schema: StructType
+) -> Tuple[DataFrame, DataFrame]:
+
+    profiles_rows = [
+        ("U1", "Aarav", "Sharma", None, "P2"),
+        ("U2", "Diya", "Iyer", "Diya Iyer", "P1"),
+        ("U3", "Kabir", "Singh", None, "P1"),
+        ("U4", "Meera", "Nair", None, "P2")
+    ]
+
+    plans_rows = [
+        ("P1", "Standard"),
+        ("P2", "Premium")
+    ]
+
+    profiles_df = spark.createDataFrame(
+        profiles_rows,
+        schema=profile_schema
+    )
+
+    plans_df = spark.createDataFrame(
+        plans_rows,
+        schema=plan_schema
+    )
+
+    return profiles_df, plans_df
+
+
+# 24. Join Profiles With Plans
+def join_profiles_with_plans(
+    profiles_df: DataFrame,
+    plans_df: DataFrame
+) -> DataFrame:
+
+    return (
+        profiles_df
+        .join(
+            plans_df,
+            on="plan_id",
+            how="left"
+        )
+        .select(
+            "user_id",
+            "first_name",
+            "last_name",
+            "full_name",
+            "plan_id",
+            "plan_name"
+        )
+    )
+
+
+# 25. Enrich Full Name
+def enrich_full_name(
+    profile_joined_df: DataFrame
+) -> DataFrame:
+
+    return profile_joined_df.withColumn(
+        "full_name",
+        F.when(
+            F.col("full_name").isNull() |
+            (
+                F.length(
+                    F.trim(
+                        F.col("full_name")
+                    )
+                ) == 0
+            ),
+            F.concat_ws(
+                " ",
+                F.col("first_name"),
+                F.col("last_name")
+            )
+        ).otherwise(
+            F.col("full_name")
+        )
+    )
+
+
+# ============================================================
+# C) UNIX TIMESTAMP CONVERSIONS
+# ============================================================
+
+# 26. Add Start Epoch Seconds
+def add_start_epoch_seconds(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "start_epoch_seconds",
+        F.unix_timestamp(
+            F.col("start_ts"),
+            "yyyy-MM-dd HH:mm:ss"
+        ).cast("long")
+    )
+
+
+# 27. Add Start Timestamp From Epoch
+def add_start_ts_from_epoch(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "start_ts_from_epoch",
+        F.from_unixtime(
+            F.col("start_epoch_seconds")
+        ).cast("timestamp")
+    )
+
+
+# ============================================================
+# D) ADDITIONAL ANALYTICS
+# ============================================================
+
+# 28. Revenue Share By Vehicle Type
+def revenue_share_by_vehicle_type(
+    df: DataFrame
+) -> List[str]:
+
+    grouped = (
+        df.groupBy("vehicle_type")
+        .agg(
+            F.sum("rev").alias("total_rev")
+        )
+    )
+
+    grand_total = (
+        grouped
+        .agg(F.sum("total_rev").alias("grand"))
+        .first()["grand"]
+    )
+
+    if grand_total is None or grand_total == 0:
+        return []
+
+    result = (
+        grouped
+        .withColumn(
+            "share",
+            F.col("total_rev") /
+            F.lit(grand_total)
+        )
+        .orderBy(
+            F.col("share").desc(),
+            F.col("vehicle_type").asc()
+        )
+        .select("vehicle_type")
+        .collect()
+    )
+
+    return [
+        str(row["vehicle_type"])
+        for row in result
+    ]
+
+
+# 29. Busiest Zone By Trips
+def busiest_zone_by_trips(
+    df: DataFrame
+) -> Tuple[str, int]:
+
+    row = (
+        df.groupBy("zone")
+        .count()
+        .orderBy(
+            F.col("count").desc(),
+            F.col("zone").asc()
+        )
+        .first()
+    )
+
+    if row is None:
+        return ("", 0)
+
+    return (
+        str(row["zone"]),
+        int(row["count"])
+    )
+
+
+# 30. Completed Trips By Zone
+def completed_trips_by_zone(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.filter(
+            F.col("status") == "Completed"
+        )
+        .groupBy("zone")
+        .agg(
+            F.count("*").alias(
+                "completed_trips"
+            )
+        )
+        .orderBy(
+            F.col("completed_trips").desc(),
+            F.col("zone").asc()
+        )
+    )
+
+
+# 31. Add Utilization Score
+def add_utilization_score(
+    df: DataFrame
+) -> DataFrame:
+
+    if "trip_duration_min" not in df.columns:
+        df = add_trip_duration_min(df)
+
+    return df.withColumn(
+        "utilization_score",
+        (
+            F.col("distance_km") *
+            F.col("trip_duration_min")
+        ).cast("double")
+    )
+
+
+# 32. Top N Users By Utilization
+def top_n_users_by_utilization(
+    df: DataFrame,
+    n: int
+) -> DataFrame:
+
+    if "utilization_score" not in df.columns:
+        df = add_utilization_score(df)
+
+    return (
+        df.groupBy("user_id")
+        .agg(
+            F.sum("utilization_score").alias(
+                "total_utilization"
+            )
+        )
+        .orderBy(
+            F.col("total_utilization").desc(),
+            F.col("user_id").asc()
+        )
+        .limit(n)
+    )
+
+
+# 33. Median Duration By Zone
+def median_duration_by_zone(
+    df: DataFrame
+) -> DataFrame:
+
+    if "trip_duration_min" not in df.columns:
+        df = add_trip_duration_min(df)
+
+    return (
+        df.groupBy("zone")
+        .agg(
+            F.percentile_approx(
+                "trip_duration_min",
+                0.5
+            ).alias(
+                "median_duration_min"
+            )
+        )
+    )
+
+
+# 34. Min-Max Normalize Fare
+def minmax_normalize_fare(
+    df: DataFrame
+) -> DataFrame:
+
+    row = df.agg(
+        F.min("fare").alias("min_fare"),
+        F.max("fare").alias("max_fare")
+    ).first()
+
+    min_fare = row["min_fare"]
+    max_fare = row["max_fare"]
+
+    if (
+        min_fare is None or
+        max_fare is None or
+        max_fare == min_fare
+    ):
+        return df.withColumn(
+            "fare_norm",
+            F.lit(0.0)
+        )
+
+    return df.withColumn(
+        "fare_norm",
+        (
+            F.col("fare") -
+            F.lit(min_fare)
+        ) / (
+            F.lit(max_fare) -
+            F.lit(min_fare)
+        )
+    )
+
+
+# 35. Detect Outlier Fares
+def detect_outlier_fares(
+    df: DataFrame
+) -> DataFrame:
+
+    row = df.agg(
+        F.mean("fare").alias("mean_fare"),
+        F.stddev_pop("fare").alias("std_fare")
+    ).first()
+
+    mean_fare = row["mean_fare"]
+    std_fare = row["std_fare"]
+
+    if (
+        mean_fare is None or
+        std_fare is None
+    ):
+        return df.withColumn(
+            "is_outlier",
+            F.lit(False)
+        )
+
+    threshold = (
+        mean_fare +
+        2 * std_fare
+    )
+
+    return df.withColumn(
+        "is_outlier",
+        F.col("fare") > F.lit(threshold)
+    )
+
+
+# 36. Monthly Net Revenue By Zone
+def monthly_net_revenue_by_zone(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.withColumn(
+            "net_revenue",
+            F.col("fare") -
+            F.col("discount")
+        )
+        .withColumn(
+            "month",
+            F.date_format(
+                F.col("trip_date"),
+                "yyyy-MM"
+            )
+        )
+        .groupBy(
+            "month",
+            "zone"
+        )
+        .agg(
+            F.sum("net_revenue").alias(
+                "monthly_net_revenue"
+            )
+        )
+        .orderBy(
+            F.col("month").asc(),
+            F.col("zone").asc()
+        )
+    )
+
+
+# 37. Weekday Peak Trip Counts
+def weekday_peak_trip_counts(
+    df: DataFrame
+) -> DataFrame:
+
+    peak_df = filter_peak_hour_trips(df)
+
+    return (
+        peak_df.withColumn(
+            "weekday",
+            F.date_format(
+                F.col("trip_date"),
+                "EEE"
+            )
+        )
+        .groupBy("weekday")
+        .agg(
+            F.count("*").alias(
+                "peak_trips"
+            )
+        )
+    )
+
+
+# 38. Pivot Payment Counts By Zone
+def pivot_payment_counts_by_zone(
+    df: DataFrame
+) -> DataFrame:
+
+    return (
+        df.groupBy("zone")
+        .pivot("payment_method")
+        .count()
+        .fillna(0)
+    )
+
+
+# 39. Calculate Net Revenue
+def calculate_net_revenue(
+    df: DataFrame
+) -> DataFrame:
+
+    return df.withColumn(
+        "net_revenue",
+        (
+            F.col("fare") -
+            F.col("discount")
+        ).cast("double")
+    )
+
+
+# 40. Flag Service Due
+def flag_service_due(
+    vehicles_df: DataFrame,
+    due_days: int
+) -> DataFrame:
+
+    last_service = F.to_date(
+        F.col("last_service_date"),
+        "yyyy-MM-dd"
+    )
+
+    days_since_service = F.datediff(
+        F.current_date(),
+        last_service
+    )
+
+    return vehicles_df.withColumn(
+        "is_service_due",
+        days_since_service > due_days
+    )
