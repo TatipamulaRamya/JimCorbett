@@ -1,16 +1,21 @@
 #Q402 Telecom Usage & Profile Enrichment
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.types import *
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    IntegerType,
+    DoubleType
+)
 from pyspark.sql import functions as F
 
 
 # ============================================================
-# 1. define_schema
+# 1. DEFINE MAIN TELECOM SCHEMA
 # ============================================================
 
-def define_schema() -> tuple:
-
-    return (
+def define_schema() -> StructType:
+    return StructType([
         StructField("event_id", StringType(), True),
         StructField("user_id", IntegerType(), True),
         StructField("plan", StringType(), True),
@@ -23,61 +28,53 @@ def define_schema() -> tuple:
         StructField("device_type", StringType(), True),
         StructField("dropped_calls", IntegerType(), True),
         StructField("latency_ms", IntegerType(), True)
-    )
+    ])
 
 
 # ============================================================
-# 2. load_data
+# 2. LOAD TELECOM CSV DATA
 # ============================================================
 
 def load_data(
     spark: SparkSession,
     path: str,
-    schema: tuple
+    schema: StructType
 ) -> DataFrame:
 
-    if isinstance(schema, StructType):
-        spark_schema = schema
-    else:
-        spark_schema = StructType(list(schema))
-
-    return spark.read.csv(
-        path,
-        header=True,
-        schema=spark_schema
+    return (
+        spark.read
+        .option("header", True)
+        .schema(schema)
+        .csv(path)
     )
 
 
 # ============================================================
-# 3. parse_event_date
+# 3. PARSE EVENT DATE
 # ============================================================
 
 def parse_event_date(df: DataFrame) -> DataFrame:
 
     return df.withColumn(
         "event_date",
-        F.to_date(
-            F.col("event_date"),
-            "yyyy-MM-dd"
-        )
+        F.to_date(F.col("event_date"), "yyyy-MM-dd")
     )
 
 
 # ============================================================
-# 4. add_total_activity
+# 4. ADD TOTAL ACTIVITY
 # ============================================================
 
 def add_total_activity(df: DataFrame) -> DataFrame:
 
     return df.withColumn(
         "total_activity",
-        F.col("voice_minutes") +
-        F.col("sms_count")
+        F.col("voice_minutes") + F.col("sms_count")
     )
 
 
 # ============================================================
-# 5. add_usage_score
+# 5. ADD USAGE SCORE
 # ============================================================
 
 def add_usage_score(df: DataFrame) -> DataFrame:
@@ -91,19 +88,18 @@ def add_usage_score(df: DataFrame) -> DataFrame:
 
 
 # ============================================================
-# 6. filter_roaming_events
+# 6. FILTER ROAMING EVENTS
 # ============================================================
 
 def filter_roaming_events(df: DataFrame) -> DataFrame:
 
-    # chr(89) represents the allowed Y flag
     return df.filter(
-        F.col("roaming") == F.lit(chr(89))
+        F.col("roaming") == "Y"
     )
 
 
 # ============================================================
-# 7. top_n_users_by_data
+# 7. TOP N USERS BY DATA
 # ============================================================
 
 def top_n_users_by_data(
@@ -125,7 +121,7 @@ def top_n_users_by_data(
 
 
 # ============================================================
-# 8. avg_latency_by_city
+# 8. AVERAGE LATENCY BY CITY
 # ============================================================
 
 def avg_latency_by_city(df: DataFrame) -> DataFrame:
@@ -135,44 +131,38 @@ def avg_latency_by_city(df: DataFrame) -> DataFrame:
         .agg(
             F.avg("latency_ms").alias("avg_latency_ms")
         )
-        .orderBy(
-            F.col("city").asc()
-        )
     )
 
 
 # ============================================================
-# 9. most_used_plan
+# 9. MOST USED PLAN
 # ============================================================
 
 def most_used_plan(df: DataFrame) -> str:
 
     result = (
         df.groupBy("plan")
-        .agg(
-            F.count("*").alias("plan_count")
-        )
+        .count()
         .orderBy(
-            F.col("plan_count").desc(),
+            F.col("count").desc(),
             F.col("plan").asc()
         )
-        .limit(1)
-        .collect()
+        .first()
     )
 
-    if not result:
-        return ""
+    if result is None:
+        return None
 
-    return result[0]["plan"]
+    return result["plan"]
 
 
 # ============================================================
-# 10. dropped_call_rate_by_plan
+# 10. DROPPED CALL RATE BY PLAN
 # ============================================================
 
 def dropped_call_rate_by_plan(df: DataFrame) -> DataFrame:
 
-    result = (
+    return (
         df.groupBy("plan")
         .agg(
             F.count("*").alias("total_calls"),
@@ -180,8 +170,7 @@ def dropped_call_rate_by_plan(df: DataFrame) -> DataFrame:
         )
         .withColumn(
             "dropped_call_rate",
-            F.col("dropped_total") /
-            F.col("total_calls")
+            F.col("dropped_total") / F.col("total_calls")
         )
         .select(
             "plan",
@@ -189,11 +178,9 @@ def dropped_call_rate_by_plan(df: DataFrame) -> DataFrame:
         )
     )
 
-    return result
-
 
 # ============================================================
-# 11. high_latency_events
+# 11. HIGH LATENCY EVENTS
 # ============================================================
 
 def high_latency_events(
@@ -207,7 +194,7 @@ def high_latency_events(
 
 
 # ============================================================
-# 12. count_users_per_city
+# 12. COUNT USERS PER CITY
 # ============================================================
 
 def count_users_per_city(df: DataFrame) -> DataFrame:
@@ -217,15 +204,11 @@ def count_users_per_city(df: DataFrame) -> DataFrame:
         .agg(
             F.countDistinct("user_id").alias("user_count")
         )
-        .select(
-            "city",
-            "user_count"
-        )
     )
 
 
 # ============================================================
-# 13. daily_data_trend
+# 13. DAILY DATA TREND
 # ============================================================
 
 def daily_data_trend(df: DataFrame) -> DataFrame:
@@ -242,12 +225,10 @@ def daily_data_trend(df: DataFrame) -> DataFrame:
 
 
 # ============================================================
-# 14. top_device_by_usage_score
+# 14. TOP DEVICE BY USAGE SCORE
 # ============================================================
 
-def top_device_by_usage_score(
-    df: DataFrame
-) -> tuple:
+def top_device_by_usage_score(df: DataFrame) -> str:
 
     result = (
         df.groupBy("device_type")
@@ -258,21 +239,17 @@ def top_device_by_usage_score(
             F.col("avg_usage_score").desc(),
             F.col("device_type").asc()
         )
-        .limit(1)
-        .collect()
+        .first()
     )
 
-    if not result:
-        return ("", 0.0)
+    if result is None:
+        return None
 
-    return (
-        result[0]["device_type"],
-        float(result[0]["avg_usage_score"])
-    )
+    return result["device_type"]
 
 
 # ============================================================
-# 15. list_cities
+# 15. LIST CITIES
 # ============================================================
 
 def list_cities(df: DataFrame) -> list:
@@ -284,14 +261,11 @@ def list_cities(df: DataFrame) -> list:
         .collect()
     )
 
-    return [
-        row["city"]
-        for row in rows
-    ]
+    return [row["city"] for row in rows]
 
 
 # ============================================================
-# 16. events_in_date_range
+# 16. EVENTS IN DATE RANGE
 # ============================================================
 
 def events_in_date_range(
@@ -309,7 +283,7 @@ def events_in_date_range(
 
 
 # ============================================================
-# 17. flag_network_risk
+# 17. FLAG NETWORK RISK
 # ============================================================
 
 def flag_network_risk(
@@ -318,24 +292,18 @@ def flag_network_risk(
     drop_threshold: int
 ) -> DataFrame:
 
-    condition = (
-        (F.col("latency_ms") > latency_threshold) |
-        (F.col("dropped_calls") > drop_threshold)
-    )
-
     return df.withColumn(
         "is_risky",
-        F.when(
-            condition,
-            True
-        ).otherwise(
-            False
+        (
+            (F.col("latency_ms") > latency_threshold)
+            |
+            (F.col("dropped_calls") > drop_threshold)
         )
     )
 
 
 # ============================================================
-# 18. top_n_risky_users
+# 18. TOP N RISKY USERS
 # ============================================================
 
 def top_n_risky_users(
@@ -360,7 +328,7 @@ def top_n_risky_users(
 
 
 # ============================================================
-# 19. avg_data_per_plan
+# 19. AVERAGE DATA PER PLAN
 # ============================================================
 
 def avg_data_per_plan(df: DataFrame) -> DataFrame:
@@ -374,12 +342,10 @@ def avg_data_per_plan(df: DataFrame) -> DataFrame:
 
 
 # ============================================================
-# 20. get_heaviest_user
+# 20. GET HEAVIEST USER
 # ============================================================
 
-def get_heaviest_user(
-    df: DataFrame
-) -> tuple:
+def get_heaviest_user(df: DataFrame) -> tuple:
 
     result = (
         df.groupBy("user_id")
@@ -390,21 +356,20 @@ def get_heaviest_user(
             F.col("total_data_mb").desc(),
             F.col("user_id").asc()
         )
-        .limit(1)
-        .collect()
+        .first()
     )
 
-    if not result:
-        return (None, 0.0)
+    if result is None:
+        return None
 
     return (
-        result[0]["user_id"],
-        float(result[0]["total_data_mb"])
+        result["user_id"],
+        result["total_data_mb"]
     )
 
 
 # ============================================================
-# 21. define_profile_schema
+# 21. DEFINE PROFILE SCHEMA
 # ============================================================
 
 def define_profile_schema() -> StructType:
@@ -419,7 +384,7 @@ def define_profile_schema() -> StructType:
 
 
 # ============================================================
-# 22. define_plan_schema
+# 22. DEFINE PLAN SCHEMA
 # ============================================================
 
 def define_plan_schema() -> StructType:
@@ -431,7 +396,7 @@ def define_plan_schema() -> StructType:
 
 
 # ============================================================
-# 23. load_inline_profile_data
+# 23. LOAD INLINE PROFILE + PLAN DATA
 # ============================================================
 
 def load_inline_profile_data(
@@ -469,7 +434,7 @@ def load_inline_profile_data(
 
 
 # ============================================================
-# 24. join_profile_plan
+# 24. JOIN PROFILE + PLAN
 # ============================================================
 
 def join_profile_plan(
@@ -478,25 +443,25 @@ def join_profile_plan(
 ) -> DataFrame:
 
     return (
-        profiles_df
+        profiles_df.alias("p")
         .join(
-            plans_df,
-            profiles_df["plan_id"] == plans_df["plan_id"],
+            plans_df.alias("pl"),
+            F.col("p.plan_id") == F.col("pl.plan_id"),
             "left"
         )
         .select(
-            profiles_df["user_id"],
-            profiles_df["first_name"],
-            profiles_df["last_name"],
-            profiles_df["full_name"],
-            profiles_df["plan_id"],
-            plans_df["plan_name"]
+            F.col("p.user_id").alias("user_id"),
+            F.col("p.first_name").alias("first_name"),
+            F.col("p.last_name").alias("last_name"),
+            F.col("p.full_name").alias("full_name"),
+            F.col("p.plan_id").alias("plan_id"),
+            F.col("pl.plan_name").alias("plan_name")
         )
     )
 
 
 # ============================================================
-# 25. enrich_full_name
+# 25. ENRICH FULL NAME
 # ============================================================
 
 def enrich_full_name(
@@ -505,19 +470,21 @@ def enrich_full_name(
 
     return profile_joined_df.withColumn(
         "full_name",
-        F.coalesce(
-            F.col("full_name"),
+        F.when(
+            F.col("full_name").isNull(),
             F.concat_ws(
                 " ",
                 F.col("first_name"),
                 F.col("last_name")
             )
+        ).otherwise(
+            F.col("full_name")
         )
     )
 
 
 # ============================================================
-# 26. add_event_epoch_seconds
+# 26. ADD EVENT EPOCH SECONDS
 # ============================================================
 
 def add_event_epoch_seconds(
@@ -527,14 +494,13 @@ def add_event_epoch_seconds(
     return df.withColumn(
         "event_epoch_seconds",
         F.unix_timestamp(
-            F.col("event_date").cast("string"),
-            "yyyy-MM-dd"
+            F.col("event_date")
         )
     )
 
 
 # ============================================================
-# 27. add_event_ts_from_epoch
+# 27. ADD EVENT TIMESTAMP FROM EPOCH
 # ============================================================
 
 def add_event_ts_from_epoch(
