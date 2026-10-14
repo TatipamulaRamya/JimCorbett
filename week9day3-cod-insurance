@@ -1,0 +1,285 @@
+CELL 1 (SQL)
+
+CREATE SCHEMA IF NOT EXISTS uc_practice_insurance.claims_ops;
+
+CREATE VOLUME IF NOT EXISTS uc_practice_insurance.claims_ops.raw_claims_vol;
+
+
+CELL 2 (PYSPARK)
+
+from pyspark.sql import functions as F
+
+df = (
+    spark.read
+    .option("header", "true")
+    .option("inferSchema", "true")
+    .csv("/Volumes/uc_practice_insurance/claims_ops/raw_claims_vol/data.csv")
+)
+
+print("Raw Count :", df.count())
+
+display(
+    df.select(
+        F.sum(
+            F.when(F.col("claim_amount").isNull(), 1).otherwise(0)
+        ).alias("null_claim_amount_count")
+    )
+)
+
+
+CELL 3 (PYSPARK)
+
+df_clean = (
+    df.filter(F.col("claim_amount").isNotNull())
+
+    .withColumn(
+        "settlement_gap",
+        F.col("claim_amount") - F.col("approved_amount")
+    )
+
+    .withColumn(
+        "review_flag",
+        F.when(F.col("claim_amount") >= 20000, "HIGH")
+        .otherwise("STANDARD")
+    )
+)
+
+print("Cleaned Count :", df_clean.count())
+
+display(df_clean)
+
+
+CELL 4 (PYSPARK)
+
+df_clean.write \
+.format("delta") \
+.mode("overwrite") \
+.saveAsTable(
+    "uc_practice_insurance.claims_ops.claims_silver"
+)
+
+
+CELL 5 (SQL)
+
+SELECT COUNT(*) AS total_records
+FROM uc_practice_insurance.claims_ops.claims_silver;
+
+
+SELECT
+    claim_type,
+    COUNT(*) AS claim_count,
+    SUM(claim_amount) AS total_claim_amount
+FROM uc_practice_insurance.claims_ops.claims_silver
+GROUP BY claim_type
+ORDER BY claim_type;
+
+
+CELL 6 (PYSPARK)
+
+df_existing = spark.table(
+    "uc_practice_insurance.claims_ops.claims_silver"
+)
+
+df_evolved = (
+    df_existing
+    .withColumn(
+        "source_system",
+        F.lit("BATCH_CSV")
+    )
+)
+
+df_evolved.write \
+.format("delta") \
+.mode("overwrite") \
+.option("mergeSchema", "true") \
+.saveAsTable(
+    "uc_practice_insurance.claims_ops.claims_silver"
+)
+
+
+CELL 7 (PYSPARK)
+
+df_updated = spark.table(
+    "uc_practice_insurance.claims_ops.claims_silver"
+)
+
+df_updated.printSchema()
+
+print("Record Count :", df_updated.count())
+
+display(df_updated)
+
+
+CELL 8 (SQL)
+
+ALTER TABLE uc_practice_insurance.claims_ops.claims_silver
+SET TBLPROPERTIES (
+    delta.enableChangeDataFeed = true
+);
+
+
+CELL 9 (SQL)
+
+DESCRIBE HISTORY
+uc_practice_insurance.claims_ops.claims_silver;
+
+
+CELL 10 (PYSPARK)
+
+table_name = "uc_practice_insurance.claims_ops.claims_silver"
+
+history_before = spark.sql(
+    f"DESCRIBE HISTORY {table_name}"
+)
+
+pre_update_version = (
+    history_before
+    .select(F.max("version").alias("version"))
+    .first()["version"]
+)
+
+print("Pre-update Version :", pre_update_version)
+
+display(
+    spark.sql(f"""
+        SELECT
+            claim_id,
+            claim_amount
+        FROM {table_name}
+        WHERE claim_id = 'CL001'
+    """)
+)
+
+
+CELL 11 (SQL)
+
+UPDATE uc_practice_insurance.claims_ops.claims_silver
+SET claim_amount = claim_amount + 100
+WHERE claim_id = 'CL001';
+
+
+CELL 12 (PYSPARK)
+
+history_after = spark.sql(
+    f"DESCRIBE HISTORY {table_name}"
+)
+
+post_update_version = (
+    history_after
+    .select(F.max("version").alias("version"))
+    .first()["version"]
+)
+
+print("Pre-update Version :", pre_update_version)
+print("Post-update Version :", post_update_version)
+
+display(history_after)
+
+
+CELL 13 (PYSPARK)
+
+cdf_df = spark.sql(f"""
+SELECT
+    claim_id,
+    claim_amount,
+    _change_type,
+    _commit_version,
+    _commit_timestamp
+FROM table_changes(
+    '{table_name}',
+    {post_update_version},
+    {post_update_version}
+)
+WHERE claim_id = 'CL001'
+ORDER BY _change_type
+""")
+
+display(cdf_df)
+
+
+CELL 14 (PYSPARK)
+
+original_df = spark.sql(f"""
+SELECT
+    claim_id,
+    claim_amount
+FROM {table_name}
+VERSION AS OF {pre_update_version}
+WHERE claim_id = 'CL001'
+""")
+
+display(original_df)
+
+
+CELL 15 (PYSPARK)
+
+current_df = spark.sql(f"""
+SELECT
+    claim_id,
+    claim_amount
+FROM {table_name}
+WHERE claim_id = 'CL001'
+""")
+
+display(current_df)
+
+
+CELL 16 (SQL)
+
+OPTIMIZE uc_practice_insurance.claims_ops.claims_silver
+ZORDER BY (claim_type);
+
+
+CELL 17 (SQL)
+
+DESCRIBE HISTORY
+uc_practice_insurance.claims_ops.claims_silver;
+
+
+============================================================
+SEPARATE VALIDATION NOTEBOOK
+============================================================
+
+
+CELL 1 (PYSPARK)
+
+from pyspark.sql import functions as F
+
+df = spark.table(
+    "uc_practice_insurance.claims_ops.claims_silver"
+)
+
+print("Record Count :", df.count())
+
+display(df)
+
+
+CELL 2 (SQL)
+
+SELECT COUNT(*) AS total_records
+FROM uc_practice_insurance.claims_ops.claims_silver;
+
+
+CELL 3 (SQL)
+
+SELECT
+    claim_type,
+    COUNT(*) AS claim_count,
+    SUM(claim_amount) AS total_claim_amount
+FROM uc_practice_insurance.claims_ops.claims_silver
+GROUP BY claim_type
+ORDER BY claim_type;
+
+
+CELL 4 (SQL)
+
+SELECT
+    claim_id,
+    claim_type,
+    claim_amount,
+    approved_amount,
+    settlement_gap,
+    review_flag,
+    source_system
+FROM uc_practice_insurance.claims_ops.claims_silver
+ORDER BY claim_id;
