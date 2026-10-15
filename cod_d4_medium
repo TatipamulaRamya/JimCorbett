@@ -1,0 +1,254 @@
+# CELL 1 - Typed ingestion and quality profile
+
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    IntegerType,
+    DoubleType,
+    DateType
+)
+from pyspark.sql.functions import col
+
+file_path = "/Volumes/training_assessment/delivery_ops/raw_delivery/food_deliveries.csv"
+
+delivery_schema = StructType([
+    StructField("delivery_id", StringType(), True),
+    StructField("zone", StringType(), True),
+    StructField("restaurant_type", StringType(), True),
+    StructField("promised_minutes", IntegerType(), True),
+    StructField("actual_minutes", IntegerType(), True),
+    StructField("delivery_fee", DoubleType(), True),
+    StructField("delivery_status", StringType(), True),
+    StructField("order_date", DateType(), True)
+])
+
+raw_df = (
+    spark.read
+    .option("header", "true")
+    .option("dateFormat", "yyyy-MM-dd")
+    .schema(delivery_schema)
+    .csv(file_path)
+)
+
+print("CSV Volume Path:", file_path)
+print("Raw Count:", raw_df.count())
+
+raw_df.printSchema()
+
+display(
+    raw_df.select("delivery_status")
+    .distinct()
+    .orderBy("delivery_status")
+)
+
+display(
+    raw_df.filter(col("actual_minutes").isNull())
+)
+
+
+# CELL 2 - Build SLA dataset
+
+from pyspark.sql.functions import greatest, lit, when
+
+clean_df = (
+    raw_df
+    .filter(
+        col("actual_minutes").isNotNull()
+        & (col("promised_minutes") > 0)
+        & (col("delivery_fee") >= 0)
+        & col("delivery_status").isin("DELIVERED", "CANCELLED")
+    )
+    .withColumn(
+        "delay_minutes",
+        greatest(
+            col("actual_minutes") - col("promised_minutes"),
+            lit(0)
+        )
+    )
+    .withColumn(
+        "sla_status",
+        when(
+            (col("delivery_status") == "DELIVERED")
+            & (col("actual_minutes") > col("promised_minutes")),
+            "BREACHED"
+        )
+        .when(
+            col("delivery_status") == "DELIVERED",
+            "ON_TIME"
+        )
+        .otherwise("NOT_DELIVERED")
+    )
+    .withColumn(
+        "fee_tier",
+        when(col("delivery_fee") >= 40, "PREMIUM")
+        .otherwise("BASIC")
+    )
+)
+
+print("Cleaned Count:", clean_df.count())
+
+display(
+    clean_df.select(
+        "delivery_id",
+        "zone",
+        "restaurant_type",
+        "promised_minutes",
+        "actual_minutes",
+        "delivery_fee",
+        "delivery_status",
+        "order_date",
+        "delay_minutes",
+        "sla_status",
+        "fee_tier"
+    )
+)
+
+
+# CELL 3 - Publish managed Delta table and quality check
+
+table_name = "training_assessment.delivery_ops.delivery_silver"
+
+(
+    clean_df.write
+    .format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(table_name)
+)
+
+saved_df = spark.table(table_name)
+
+print("Managed Delta Table:", table_name)
+print("Saved Row Count:", saved_df.count())
+
+saved_df.printSchema()
+
+display(
+    saved_df.select(
+        "delivery_id",
+        "delay_minutes",
+        "sla_status"
+    )
+    .filter(
+        col("delay_minutes").isNull()
+        | col("sla_status").isNull()
+    )
+)
+
+display(
+    saved_df.agg(
+        {
+            "delay_minutes": "count",
+            "sla_status": "count"
+        }
+    )
+)
+
+display(saved_df)
+
+
+# CELL 4 - Show FD0007 before MERGE
+
+count_before_merge = spark.table(table_name).count()
+
+print("Count Before MERGE:", count_before_merge)
+
+display(
+    spark.table(table_name)
+    .filter(col("delivery_id") == "FD0007")
+)
+
+
+# CELL 5 - Create one-row correction source and perform MERGE
+
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+correction_schema = StructType([
+    StructField("delivery_id", StringType(), False),
+    StructField("actual_minutes", IntegerType(), False)
+])
+
+correction_df = spark.createDataFrame(
+    [("FD0007", 42)],
+    correction_schema
+)
+
+correction_df.createOrReplaceTempView("delivery_correction")
+
+display(correction_df)
+
+spark.sql("""
+MERGE INTO training_assessment.delivery_ops.delivery_silver AS target
+USING delivery_correction AS source
+ON target.delivery_id = source.delivery_id
+
+WHEN MATCHED THEN UPDATE SET
+    target.actual_minutes = source.actual_minutes,
+
+    target.delay_minutes =
+        GREATEST(
+            source.actual_minutes - target.promised_minutes,
+            0
+        ),
+
+    target.sla_status =
+        CASE
+            WHEN target.delivery_status = 'DELIVERED'
+                 AND source.actual_minutes > target.promised_minutes
+                THEN 'BREACHED'
+            WHEN target.delivery_status = 'DELIVERED'
+                THEN 'ON_TIME'
+            ELSE 'NOT_DELIVERED'
+        END
+""")
+
+
+# CELL 6 - Show FD0007 after MERGE and verify count unchanged
+
+updated_df = spark.table(table_name)
+
+count_after_merge = updated_df.count()
+
+print("Count Before MERGE:", count_before_merge)
+print("Count After MERGE:", count_after_merge)
+print("Count Unchanged:", count_before_merge == count_after_merge)
+
+display(
+    updated_df
+    .filter(col("delivery_id") == "FD0007")
+)
+
+
+# CELL 7 - Restaurant delivery KPI calculation
+
+restaurant_kpi_df = spark.sql("""
+SELECT
+    restaurant_type,
+    COUNT(*) AS delivered_orders,
+    SUM(
+        CASE
+            WHEN sla_status = 'BREACHED' THEN 1
+            ELSE 0
+        END
+    ) AS late_deliveries,
+    ROUND(AVG(delivery_fee), 2) AS avg_delivery_fee
+FROM training_assessment.delivery_ops.delivery_silver
+WHERE delivery_status = 'DELIVERED'
+GROUP BY restaurant_type
+ORDER BY restaurant_type
+""")
+
+display(restaurant_kpi_df)
+
+
+# CELL 8 - Count PREMIUM fee-tier rows
+
+premium_count_df = spark.sql("""
+SELECT
+    COUNT(*) AS premium_row_count
+FROM training_assessment.delivery_ops.delivery_silver
+WHERE fee_tier = 'PREMIUM'
+""")
+
+display(premium_count_df)
