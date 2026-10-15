@@ -1,0 +1,111 @@
+# CELL 1 - Stage and inspect
+
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, DateType
+from pyspark.sql.functions import col
+
+file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/hotel_bookings.csv"
+
+booking_schema = StructType([
+    StructField("booking_id", StringType(), True),
+    StructField("hotel_id", StringType(), True),
+    StructField("room_type", StringType(), True),
+    StructField("nights", IntegerType(), True),
+    StructField("nightly_rate", DoubleType(), True),
+    StructField("booking_status", StringType(), True),
+    StructField("booking_date", DateType(), True)
+])
+
+raw_df = (
+    spark.read
+    .option("header", "true")
+    .option("dateFormat", "yyyy-MM-dd")
+    .schema(booking_schema)
+    .csv(file_path)
+)
+
+print("CSV Volume Path:", file_path)
+print("Raw Count:", raw_df.count())
+raw_df.printSchema()
+
+display(raw_df.filter(col("nightly_rate").isNull()))
+
+
+# CELL 2 - Filter and calculate booking revenue
+
+from pyspark.sql.functions import round, when
+
+clean_df = (
+    raw_df
+    .filter(
+        col("nightly_rate").isNotNull()
+        & (col("nights") > 0)
+        & (col("booking_status") == "CONFIRMED")
+    )
+    .withColumn(
+        "booking_amount",
+        round(col("nights") * col("nightly_rate"), 2)
+    )
+    .withColumn(
+        "revenue_band",
+        when(col("booking_amount") >= 12000, "PREMIUM")
+        .otherwise("REGULAR")
+    )
+)
+
+print("Clean Count:", clean_df.count())
+
+display(
+    clean_df.select(
+        "booking_id",
+        "hotel_id",
+        "room_type",
+        "nights",
+        "nightly_rate",
+        "booking_status",
+        "booking_date",
+        "booking_amount",
+        "revenue_band"
+    )
+)
+
+
+# CELL 3 - Publish managed Delta table
+
+table_name = "training_assessment.hospitality.booking_silver"
+
+(
+    clean_df.write
+    .format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .saveAsTable(table_name)
+)
+
+print("Managed Delta Table:", table_name)
+
+saved_df = spark.table(table_name)
+
+saved_df.printSchema()
+display(saved_df)
+
+
+# CELL 4 - Room-type revenue ranking
+# Change this Databricks cell language to SQL before running
+
+# SELECT
+#     room_type,
+#     COUNT(*) AS booking_count,
+#     ROUND(SUM(booking_amount), 2) AS total_revenue,
+#     MAX(booking_amount) AS max_booking_amount
+# FROM training_assessment.hospitality.booking_silver
+# GROUP BY room_type
+# ORDER BY total_revenue DESC, room_type ASC;
+
+
+# CELL 5 - Count PREMIUM reservations
+# Change this Databricks cell language to SQL before running
+
+# SELECT
+#     COUNT(*) AS premium_reservation_count
+# FROM training_assessment.hospitality.booking_silver
+# WHERE revenue_band = 'PREMIUM';
