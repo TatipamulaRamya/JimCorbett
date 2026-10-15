@@ -1,6 +1,13 @@
 # CELL 1 - Stage and inspect
 
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, DateType
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    IntegerType,
+    DoubleType,
+    DateType
+)
 from pyspark.sql.functions import col
 
 file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/hotel_bookings.csv"
@@ -25,9 +32,12 @@ raw_df = (
 
 print("CSV Volume Path:", file_path)
 print("Raw Count:", raw_df.count())
+
 raw_df.printSchema()
 
-display(raw_df.filter(col("nightly_rate").isNull()))
+display(
+    raw_df.filter(col("nightly_rate").isNull())
+)
 
 
 # CELL 2 - Filter and calculate booking revenue
@@ -71,7 +81,7 @@ display(
 
 # CELL 3 - Publish managed Delta table
 
-table_name = "training_assessment.hospitality.booking_silver"
+table_name = "cat_ltm10877309.schema_data_integration_tr.booking_silver"
 
 (
     clean_df.write
@@ -85,27 +95,35 @@ print("Managed Delta Table:", table_name)
 
 saved_df = spark.table(table_name)
 
+print("Saved Row Count:", saved_df.count())
 saved_df.printSchema()
+
 display(saved_df)
 
 
 # CELL 4 - Room-type revenue ranking
-# Change this Databricks cell language to SQL before running
 
-# SELECT
-#     room_type,
-#     COUNT(*) AS booking_count,
-#     ROUND(SUM(booking_amount), 2) AS total_revenue,
-#     MAX(booking_amount) AS max_booking_amount
-# FROM training_assessment.hospitality.booking_silver
-# GROUP BY room_type
-# ORDER BY total_revenue DESC, room_type ASC;
+room_type_revenue_df = spark.sql("""
+SELECT
+    room_type,
+    COUNT(*) AS booking_count,
+    ROUND(SUM(booking_amount), 2) AS total_revenue,
+    MAX(booking_amount) AS max_booking_amount
+FROM cat_ltm10877309.schema_data_integration_tr.booking_silver
+GROUP BY room_type
+ORDER BY total_revenue DESC, room_type ASC
+""")
+
+display(room_type_revenue_df)
 
 
 # CELL 5 - Count PREMIUM reservations
-# Change this Databricks cell language to SQL before running
 
-# SELECT
-#     COUNT(*) AS premium_reservation_count
-# FROM training_assessment.hospitality.booking_silver
-# WHERE revenue_band = 'PREMIUM';
+premium_reservations_df = spark.sql("""
+SELECT
+    COUNT(*) AS premium_reservation_count
+FROM cat_ltm10877309.schema_data_integration_tr.booking_silver
+WHERE revenue_band = 'PREMIUM'
+""")
+
+display(premium_reservations_df)
