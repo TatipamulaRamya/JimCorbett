@@ -10,7 +10,7 @@ from pyspark.sql.types import (
 )
 from pyspark.sql.functions import col
 
-file_path = "/Volumes/training_assessment/delivery_ops/raw_delivery/food_deliveries.csv"
+file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/food_deliveries.csv"
 
 delivery_schema = StructType([
     StructField("delivery_id", StringType(), True),
@@ -107,7 +107,7 @@ display(
 
 # CELL 3 - Publish managed Delta table and quality check
 
-table_name = "training_assessment.delivery_ops.delivery_silver"
+table_name = "cat_ltm10877309.schema_data_integration_tr.delivery_silver"
 
 (
     clean_df.write
@@ -179,19 +179,17 @@ correction_df.createOrReplaceTempView("delivery_correction")
 display(correction_df)
 
 spark.sql("""
-MERGE INTO training_assessment.delivery_ops.delivery_silver AS target
+MERGE INTO cat_ltm10877309.schema_data_integration_tr.delivery_silver AS target
 USING delivery_correction AS source
 ON target.delivery_id = source.delivery_id
 
 WHEN MATCHED THEN UPDATE SET
     target.actual_minutes = source.actual_minutes,
-
     target.delay_minutes =
         GREATEST(
             source.actual_minutes - target.promised_minutes,
             0
         ),
-
     target.sla_status =
         CASE
             WHEN target.delivery_status = 'DELIVERED'
@@ -233,7 +231,7 @@ SELECT
         END
     ) AS late_deliveries,
     ROUND(AVG(delivery_fee), 2) AS avg_delivery_fee
-FROM training_assessment.delivery_ops.delivery_silver
+FROM cat_ltm10877309.schema_data_integration_tr.delivery_silver
 WHERE delivery_status = 'DELIVERED'
 GROUP BY restaurant_type
 ORDER BY restaurant_type
@@ -247,7 +245,7 @@ display(restaurant_kpi_df)
 premium_count_df = spark.sql("""
 SELECT
     COUNT(*) AS premium_row_count
-FROM training_assessment.delivery_ops.delivery_silver
+FROM cat_ltm10877309.schema_data_integration_tr.delivery_silver
 WHERE fee_tier = 'PREMIUM'
 """)
 
