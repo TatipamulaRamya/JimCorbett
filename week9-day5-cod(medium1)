@@ -1,0 +1,340 @@
+# ============================================================
+# CELL 1 - TASK 1 - PYSPARK
+# Create the Required M01 Folder in the Existing Volume
+# ============================================================
+
+folder_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/m01"
+
+dbutils.fs.mkdirs(folder_path)
+
+print("M01 folder created:")
+print(folder_path)
+
+# After creating the folder, upload the CSV using Catalog Explorer
+display(dbutils.fs.ls(folder_path))
+
+
+# ============================================================
+# CELL 2 - TASK 1 - SQL
+# Create or Reuse the Assessment Schema
+# ============================================================
+%sql
+
+CREATE SCHEMA IF NOT EXISTS cat_ltm10877309.exam_ltm10877309;
+
+SHOW SCHEMAS IN cat_ltm10877309;
+
+
+# ============================================================
+# CELL 3 - TASK 2 - PYSPARK
+# Read CSV Using Explicit Schema
+# ============================================================
+
+from pyspark.sql.types import *
+
+file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/m01/M01_Industrial_Asset_Delta_Maintenance.csv"
+
+asset_schema = StructType([
+    StructField("asset_id", StringType(), True),
+    StructField("region", StringType(), True),
+    StructField("asset_type", StringType(), True),
+    StructField("quantity", IntegerType(), True),
+    StructField("unit_cost", DecimalType(12, 2), True),
+    StructField("total_cost", DecimalType(14, 2), True),
+    StructField("condition", StringType(), True)
+])
+
+asset_df = (
+    spark.read
+    .option("header", "true")
+    .schema(asset_schema)
+    .csv(file_path)
+)
+
+asset_df.printSchema()
+
+print("Source Record Count:", asset_df.count())
+
+display(asset_df.orderBy("asset_id"))
+
+
+# ============================================================
+# CELL 4 - TASK 2 - PYSPARK
+# Write Managed Delta Table
+# No Path, Location, Partitioning or Clustering
+# ============================================================
+
+table_name = "cat_ltm10877309.exam_ltm10877309.asset_costs"
+
+(
+    asset_df.write
+    .format("delta")
+    .mode("overwrite")
+    .saveAsTable(table_name)
+)
+
+print("Managed Delta table created:")
+print(table_name)
+
+display(
+    spark.table(table_name)
+    .orderBy("asset_id")
+)
+
+
+# ============================================================
+# CELL 5 - TASK 2 - SQL
+# Baseline Count and Total Cost
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS n,
+    SUM(total_cost) AS total
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# ============================================================
+# CELL 6 - TASK 2 - SQL
+# Delta Table Details
+# ============================================================
+%sql
+
+DESCRIBE DETAIL
+cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# ============================================================
+# CELL 7 - TASK 2 - SQL
+# Record the Baseline Delta Version
+# Look for the latest WRITE operation and note its version
+# ============================================================
+%sql
+
+DESCRIBE HISTORY
+cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# ============================================================
+# IMPORTANT
+# From CELL 7 output, note the version for the baseline WRITE.
+#
+# Example:
+# If the latest WRITE version is 0, baseline version is 0.
+# If the latest WRITE version is 4, baseline version is 4.
+#
+# Use that exact number in CELL 12 and CELL 13.
+# Do not automatically assume the baseline version is 0.
+# ============================================================
+
+
+# ============================================================
+# CELL 8 - TASK 3 - SQL
+# Correct Asset A002
+# ============================================================
+%sql
+
+UPDATE cat_ltm10877309.exam_ltm10877309.asset_costs
+SET
+    quantity = 4,
+    unit_cost = 650.00,
+    total_cost = 2600.00
+WHERE asset_id = 'A002';
+
+
+# ============================================================
+# CELL 9 - TASK 3 - SQL
+# Correct Asset A007
+# ============================================================
+%sql
+
+UPDATE cat_ltm10877309.exam_ltm10877309.asset_costs
+SET
+    quantity = 6,
+    unit_cost = 850.00,
+    total_cost = 5100.00
+WHERE asset_id = 'A007';
+
+
+# ============================================================
+# CELL 10 - TASK 3 - SQL
+# Verify A002 and A007
+# ============================================================
+%sql
+
+SELECT
+    asset_id,
+    quantity,
+    unit_cost,
+    total_cost
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+WHERE asset_id IN ('A002', 'A007')
+ORDER BY asset_id;
+
+
+# ============================================================
+# CELL 11 - TASK 3 - SQL
+# Confirm Total Cost After Updates
+# ============================================================
+%sql
+
+SELECT
+    SUM(total_cost) AS after_update
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# Expected after_update = 35100.00
+
+
+# ============================================================
+# CELL 12 - TASK 4 - SQL
+# Check A006 Before Deleting
+# ============================================================
+%sql
+
+SELECT *
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+WHERE asset_id = 'A006';
+
+
+# ============================================================
+# CELL 13 - TASK 4 - SQL
+# Delete Retired Asset A006
+# Run This Cell Only Once
+# ============================================================
+%sql
+
+DELETE FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+WHERE asset_id = 'A006';
+
+
+# ============================================================
+# CELL 14 - TASK 4 - SQL
+# Current Count and Current Total
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS current_rows,
+    SUM(total_cost) AS current_total
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# Expected:
+# current_rows  = 11
+# current_total = 33300.00
+
+
+# ============================================================
+# CELL 15 - TASK 4 - SQL
+# Baseline Count and Total Using Time Travel
+#
+# IMPORTANT:
+# Replace 0 below with the baseline version noted in CELL 7.
+# Example: VERSION AS OF 4
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS baseline_rows,
+    SUM(total_cost) AS baseline_total
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+VERSION AS OF 0;
+
+
+# Expected:
+# baseline_rows  = 12
+# baseline_total = 32400.00
+
+
+# ============================================================
+# CELL 16 - TASK 4 - SQL
+# Verify A006 Existed in the Baseline Version
+#
+# Replace 0 with the baseline version noted in CELL 7.
+# ============================================================
+%sql
+
+SELECT *
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+VERSION AS OF 0
+WHERE asset_id = 'A006';
+
+
+# ============================================================
+# CELL 17 - TASK 4 - SQL
+# Verify A006 Is Absent From the Current Table
+# ============================================================
+%sql
+
+SELECT *
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+WHERE asset_id = 'A006';
+
+
+# Expected: No rows
+
+
+# ============================================================
+# CELL 18 - TASK 5 - SQL
+# Optimize the Table and Z-Order by Region
+# ============================================================
+%sql
+
+OPTIMIZE cat_ltm10877309.exam_ltm10877309.asset_costs
+ZORDER BY (region);
+
+
+# ============================================================
+# CELL 19 - TASK 5 - SQL
+# Check Delta History
+# History Should Include WRITE, UPDATE, DELETE and OPTIMIZE
+# ============================================================
+%sql
+
+DESCRIBE HISTORY
+cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# ============================================================
+# CELL 20 - TASK 5 - SQL
+# Check Delta Table Metadata
+# Verify format is delta
+# ============================================================
+%sql
+
+DESCRIBE DETAIL
+cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# ============================================================
+# CELL 21 - TASK 5 - SQL
+# Final Count and Total Cost
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS final_rows,
+    SUM(total_cost) AS final_total
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs;
+
+
+# Expected:
+# final_rows  = 11
+# final_total = 33300.00
+
+
+# ============================================================
+# CELL 22 - TASK 5 - SQL
+# Verify No A006 Record Survives
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS obsolete_rows
+FROM cat_ltm10877309.exam_ltm10877309.asset_costs
+WHERE asset_id = 'A006';
+
+
+# Expected:
+# obsolete_rows = 0
