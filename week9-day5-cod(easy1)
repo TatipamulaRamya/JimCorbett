@@ -1,0 +1,207 @@
+# ============================================================
+# CELL 1 - TASK 1 - SQL
+# Create/Re-use Unity Catalog Schema
+# ============================================================
+%sql
+
+CREATE SCHEMA IF NOT EXISTS cat_ltm10877309.exam_ltm10877309;
+
+SHOW SCHEMAS IN cat_ltm10877309;
+
+
+# ============================================================
+# CELL 2 - TASK 2 - PYSPARK
+# Read CSV With Explicit Schema
+# ============================================================
+
+from pyspark.sql.types import *
+
+file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/assessments/ltm10877309/e01/E01_Marketplace_Order_Quality_and_Revenue.csv"
+
+schema = StructType([
+    StructField("order_id", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("category", StringType(), True),
+    StructField("quantity", IntegerType(), True),
+    StructField("unit_price", DecimalType(12,2), True),
+    StructField("order_status", StringType(), True),
+    StructField("order_date", DateType(), True)
+])
+
+df = (
+    spark.read
+    .option("header", "true")
+    .schema(schema)
+    .csv(file_path)
+)
+
+print("Source Count:", df.count())
+
+display(df)
+
+
+# ============================================================
+# CELL 3 - TASK 2 - PYSPARK
+# Identify Rejected Orders
+# ============================================================
+
+from pyspark.sql.functions import col
+
+invalid_df = df.filter(
+    (col("order_status") == "CANCELLED") |
+    (col("quantity") <= 0) |
+    (col("unit_price").isNull())
+)
+
+display(invalid_df)
+
+
+# ============================================================
+# CELL 4 - TASK 2 - PYSPARK
+# Remove Rejected Orders
+# ============================================================
+
+clean_df = df.filter(
+    (col("order_status") == "COMPLETED") &
+    (col("quantity") > 0) &
+    (col("unit_price").isNotNull())
+)
+
+print("Source Count:", df.count())
+print("Cleaned Count:", clean_df.count())
+
+display(clean_df)
+
+
+# ============================================================
+# CELL 5 - TASK 3 - PYSPARK
+# Create order_value and value_band
+# ============================================================
+
+from pyspark.sql.functions import col, when
+
+silver_df = (
+    clean_df
+    .withColumn(
+        "order_value",
+        (col("quantity") * col("unit_price")).cast("decimal(14,2)")
+    )
+    .withColumn(
+        "value_band",
+        when(col("order_value") >= 1500, "HIGH")
+        .otherwise("STANDARD")
+    )
+)
+
+display(silver_df)
+
+
+# ============================================================
+# CELL 6 - TASK 3 - PYSPARK
+# Keep 7 Source Columns + 2 Derived Columns
+# ============================================================
+
+silver_df = silver_df.select(
+    "order_id",
+    "city",
+    "category",
+    "quantity",
+    "unit_price",
+    "order_status",
+    "order_date",
+    "order_value",
+    "value_band"
+)
+
+display(silver_df)
+
+
+# ============================================================
+# CELL 7 - TASK 3 - PYSPARK
+# Write Managed Delta Table
+# ============================================================
+
+silver_df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .saveAsTable(
+        "cat_ltm10877309.exam_ltm10877309.marketplace_orders_silver"
+    )
+
+display(
+    spark.table(
+        "cat_ltm10877309.exam_ltm10877309.marketplace_orders_silver"
+    )
+)
+
+
+# ============================================================
+# CELL 8 - TASK 4 - SQL
+# Check Delta Metadata
+# ============================================================
+%sql
+
+DESCRIBE DETAIL
+cat_ltm10877309.exam_ltm10877309.marketplace_orders_silver;
+
+
+# ============================================================
+# CELL 9 - TASK 4 - SQL
+# City-wise Sales
+# ============================================================
+%sql
+
+SELECT
+    city,
+    COUNT(*) AS order_count,
+    SUM(order_value) AS revenue,
+    SUM(
+        CASE
+            WHEN value_band = 'HIGH' THEN 1
+            ELSE 0
+        END
+    ) AS high_orders
+FROM cat_ltm10877309.exam_ltm10877309.marketplace_orders_silver
+GROUP BY city
+ORDER BY city;
+
+
+# ============================================================
+# CELL 10 - TASK 4 - SQL
+# Global Count and Revenue
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS valid_orders,
+    SUM(order_value) AS total_revenue
+FROM cat_ltm10877309.exam_ltm10877309.marketplace_orders_silver;
+
+
+# ============================================================
+# CELL 11 - VALIDATION - SQL
+# Check Business Rules
+# ============================================================
+%sql
+
+SELECT COUNT(*) AS invalid_rows
+FROM cat_ltm10877309.exam_ltm10877309.marketplace_orders_silver
+WHERE order_status <> 'COMPLETED'
+   OR quantity <= 0
+   OR unit_price IS NULL
+   OR order_value <> quantity * unit_price
+   OR value_band <>
+       CASE
+           WHEN order_value >= 1500 THEN 'HIGH'
+           ELSE 'STANDARD'
+       END;
+
+
+# ============================================================
+# EXPECTED VALIDATION
+# ============================================================
+# Source records  = 20
+# Cleaned records = 16
+# Valid orders    = 16
+# Total revenue   = 31800.00
+# Invalid rows    = 0
