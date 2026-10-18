@@ -1,0 +1,421 @@
+# ============================================================
+# CELL 1 - TASK 1 - PYSPARK
+# Create the Required M02 Folder
+# ============================================================
+
+folder_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/m02"
+
+dbutils.fs.mkdirs(folder_path)
+
+print("M02 folder created:")
+print(folder_path)
+
+# After creating the folder, upload both CSV files
+display(dbutils.fs.ls(folder_path))
+
+
+# ============================================================
+# CELL 2 - TASK 1 - SQL
+# Create/Re-use the Assessment Schema
+# ============================================================
+%sql
+
+CREATE SCHEMA IF NOT EXISTS cat_ltm10877309.exam_ltm10877309;
+
+SHOW SCHEMAS IN cat_ltm10877309;
+
+
+# ============================================================
+# CELL 3 - TASK 2 - PYSPARK
+# Read the Base CSV Using an Explicit Schema
+# ============================================================
+
+from pyspark.sql.types import *
+
+base_file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/m02/M02_Warehouse_Inventory_Delta_MERGE_and_OPTIMIZE.csv"
+
+inventory_schema = StructType([
+    StructField("sku", StringType(), True),
+    StructField("warehouse", StringType(), True),
+    StructField("category", StringType(), True),
+    StructField("units", IntegerType(), True),
+    StructField("unit_cost", DecimalType(12, 2), True),
+    StructField("stock_value", DecimalType(14, 2), True)
+])
+
+base_df = (
+    spark.read
+    .option("header", "true")
+    .schema(inventory_schema)
+    .csv(base_file_path)
+)
+
+base_df.printSchema()
+
+print("Base Source Count:", base_df.count())
+
+display(base_df.orderBy("sku"))
+
+
+# ============================================================
+# CELL 4 - TASK 2 - PYSPARK
+# Write the Baseline Managed Delta Table
+# Do Not Give LOCATION or PATH
+# ============================================================
+
+table_name = "cat_ltm10877309.exam_ltm10877309.warehouse_inventory"
+
+(
+    base_df.write
+    .format("delta")
+    .mode("overwrite")
+    .saveAsTable(table_name)
+)
+
+print("Managed Delta table created:")
+print(table_name)
+
+display(
+    spark.table(table_name)
+    .orderBy("sku")
+)
+
+
+# ============================================================
+# CELL 5 - TASK 2 - SQL
+# Check the Baseline Count and Stock Value
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS n,
+    SUM(stock_value) AS total
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# Expected:
+# n = 12
+# total = 10500.00
+
+
+# ============================================================
+# CELL 6 - TASK 2 - SQL
+# Check Baseline Delta History
+# Record the Version of the Latest WRITE
+# ============================================================
+%sql
+
+DESCRIBE HISTORY
+cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# IMPORTANT:
+# Note the version of the latest WRITE operation.
+#
+# Example:
+# If the latest WRITE has version 0, the baseline version is 0.
+# If the latest WRITE has version 4, the baseline version is 4.
+#
+# Use your actual baseline version in CELL 18.
+
+
+# ============================================================
+# CELL 7 - TASK 3 - PYSPARK
+# Read the Changes CSV Using the Same Explicit Schema
+# ============================================================
+
+changes_file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/m02/M02_Warehouse_Inventory_Delta_MERGE_and_OPTIMIZE_changes.csv"
+
+changes_df = (
+    spark.read
+    .option("header", "true")
+    .schema(inventory_schema)
+    .csv(changes_file_path)
+)
+
+changes_df.printSchema()
+
+print("Changes Source Count:", changes_df.count())
+
+display(changes_df.orderBy("sku"))
+
+
+# ============================================================
+# CELL 8 - TASK 3 - PYSPARK
+# Register Changes DataFrame as Temporary View
+# ============================================================
+
+changes_df.createOrReplaceTempView("inventory_changes")
+
+print("Temporary view created: inventory_changes")
+
+display(
+    spark.sql("""
+        SELECT *
+        FROM inventory_changes
+        ORDER BY sku
+    """)
+)
+
+
+# ============================================================
+# CELL 9 - TASK 3 - SQL
+# Execute Delta MERGE
+# Existing SKUs Are Updated and New SKUs Are Inserted
+# ============================================================
+%sql
+
+MERGE INTO cat_ltm10877309.exam_ltm10877309.warehouse_inventory AS target
+
+USING inventory_changes AS source
+
+ON target.sku = source.sku
+
+WHEN MATCHED THEN
+UPDATE SET
+    target.warehouse = source.warehouse,
+    target.category = source.category,
+    target.units = source.units,
+    target.unit_cost = source.unit_cost,
+    target.stock_value = source.stock_value
+
+WHEN NOT MATCHED THEN
+INSERT (
+    sku,
+    warehouse,
+    category,
+    units,
+    unit_cost,
+    stock_value
+)
+VALUES (
+    source.sku,
+    source.warehouse,
+    source.category,
+    source.units,
+    source.unit_cost,
+    source.stock_value
+);
+
+
+# ============================================================
+# CELL 10 - TASK 3 - SQL
+# Verify Updated and Inserted Records
+# ============================================================
+%sql
+
+SELECT
+    sku,
+    warehouse,
+    category,
+    units,
+    unit_cost,
+    stock_value
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory
+WHERE sku IN ('SKU002', 'SKU008', 'SKU013', 'SKU014')
+ORDER BY sku;
+
+
+# Expected:
+# SKU002 -> units 7, stock_value 1400.00
+# SKU008 -> units 6, stock_value 2400.00
+# SKU013 -> units 4, stock_value 600.00
+# SKU014 -> units 3, stock_value 750.00
+
+
+# ============================================================
+# CELL 11 - TASK 4 - SQL
+# Optimize and Z-Order by Warehouse
+# ============================================================
+%sql
+
+OPTIMIZE cat_ltm10877309.exam_ltm10877309.warehouse_inventory
+ZORDER BY (warehouse);
+
+
+# ============================================================
+# CELL 12 - TASK 4 - SQL
+# Check Delta History
+# Verify WRITE, MERGE and OPTIMIZE Operations
+# ============================================================
+%sql
+
+DESCRIBE HISTORY
+cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# ============================================================
+# CELL 13 - TASK 4 - SQL
+# Check Delta Table Metadata
+# Verify That Format Is Delta
+# ============================================================
+%sql
+
+DESCRIBE DETAIL
+cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# ============================================================
+# CELL 14 - TASK 5 - SQL
+# Validate Final Count, Total, Unique SKUs and Stock Values
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS n,
+    SUM(stock_value) AS total,
+    COUNT(DISTINCT sku) AS unique_skus,
+    SUM(
+        CASE
+            WHEN stock_value <> units * unit_cost THEN 1
+            ELSE 0
+        END
+    ) AS bad_values
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# Expected:
+# n = 14
+# total = 13050.00
+# unique_skus = 14
+# bad_values = 0
+
+
+# ============================================================
+# CELL 15 - TASK 5 - SQL
+# Verify One Row Exists per SKU
+# ============================================================
+%sql
+
+SELECT
+    sku,
+    COUNT(*) AS row_count
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory
+GROUP BY sku
+HAVING COUNT(*) > 1
+ORDER BY sku;
+
+
+# Expected:
+# No rows should be returned
+
+
+# ============================================================
+# CELL 16 - TASK 5 - SQL
+# Verify the Four Changed Records and Calculated Stock Value
+# ============================================================
+%sql
+
+SELECT
+    sku,
+    warehouse,
+    category,
+    units,
+    unit_cost,
+    stock_value,
+    units * unit_cost AS calculated_stock_value
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory
+WHERE sku IN ('SKU002', 'SKU008', 'SKU013', 'SKU014')
+ORDER BY sku;
+
+
+# ============================================================
+# CELL 17 - TASK 5 - SQL
+# Warehouse-wise Totals
+# ============================================================
+%sql
+
+SELECT
+    warehouse,
+    COUNT(*) AS sku_count,
+    SUM(stock_value) AS value
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory
+GROUP BY warehouse
+ORDER BY warehouse;
+
+
+# Warehouse values together should total 13050.00
+
+
+# ============================================================
+# CELL 18 - TASK 5 - SQL
+# Read-Only Baseline Comparison Using Delta Time Travel
+#
+# IMPORTANT:
+# Replace 0 with the baseline WRITE version from CELL 6.
+# Do not assume that the baseline version is always 0.
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS baseline_n,
+    SUM(stock_value) AS baseline_value
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory
+VERSION AS OF 0;
+
+
+# Expected:
+# baseline_n = 12
+# baseline_value = 10500.00
+
+
+# ============================================================
+# CELL 19 - TASK 5 - SQL
+# Compare Current Values After MERGE and OPTIMIZE
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS current_n,
+    SUM(stock_value) AS current_value
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# Expected:
+# current_n = 14
+# current_value = 13050.00
+
+
+# ============================================================
+# CELL 20 - FINAL SQL VALIDATION
+# Check All Required Conditions Together
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS final_rows,
+    COUNT(DISTINCT sku) AS distinct_skus,
+    SUM(stock_value) AS final_stock_value,
+    SUM(
+        CASE
+            WHEN stock_value <> units * unit_cost THEN 1
+            ELSE 0
+        END
+    ) AS incorrect_stock_values
+FROM cat_ltm10877309.exam_ltm10877309.warehouse_inventory;
+
+
+# ============================================================
+# EXPECTED FINAL RESULTS
+# ============================================================
+
+# Baseline rows             = 12
+# Baseline stock value      = 10500.00
+# Changes source rows       = 4
+# Final rows                = 14
+# Distinct SKUs             = 14
+# Final stock value         = 13050.00
+# Incorrect stock values    = 0
+#
+# SKU002 = 7 units, 1400.00
+# SKU008 = 6 units, 2400.00
+# SKU013 = 4 units, 600.00
+# SKU014 = 3 units, 750.00
+#
+# History should show:
+# WRITE
+# MERGE
+# OPTIMIZE
+#
+# DESCRIBE DETAIL should show:
+# format = delta
