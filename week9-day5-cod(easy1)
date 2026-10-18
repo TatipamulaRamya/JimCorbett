@@ -15,9 +15,12 @@ SHOW SCHEMAS IN cat_ltm10877309;
 # ============================================================
 
 from pyspark.sql.types import *
-
+folder_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/assessments/ltm10877309/e01"
+dbutils.fs.mkdirs(folder_path)
+print("Folder created:")
+print(folder_path)
+display(dbutils.fs.ls(folder_path))
 file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/assessments/ltm10877309/e01/E01_Marketplace_Order_Quality_and_Revenue.csv"
-
 schema = StructType([
     StructField("order_id", StringType(), True),
     StructField("city", StringType(), True),
@@ -27,16 +30,8 @@ schema = StructType([
     StructField("order_status", StringType(), True),
     StructField("order_date", DateType(), True)
 ])
-
-df = (
-    spark.read
-    .option("header", "true")
-    .schema(schema)
-    .csv(file_path)
-)
-
+df = (spark.read.option("header", "true").schema(schema).csv(file_path))
 print("Source Count:", df.count())
-
 display(df)
 
 
