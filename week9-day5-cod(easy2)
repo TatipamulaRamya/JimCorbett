@@ -32,7 +32,7 @@ SHOW SCHEMAS IN cat_ltm10877309;
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
 
-file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/e02/E02_Clinic_Visit_Charges_and_Utilisation.csv"
+file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/assessments/ltm10877309/e02/E02_Clinic_Visit_Charges_and_Utilisation.csv"
 
 schema = StructType([
     StructField("visit_id", StringType(), True),
