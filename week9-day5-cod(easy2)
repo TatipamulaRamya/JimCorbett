@@ -1,0 +1,305 @@
+# ============================================================
+# CELL 1 - TASK 1 - PYSPARK
+# Create Required E02 Folder
+# ============================================================
+
+folder_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/e01_mgd_vol/assessments/ltm10877309/e02"
+
+dbutils.fs.mkdirs(folder_path)
+
+print("Folder created:")
+print(folder_path)
+
+display(dbutils.fs.ls(folder_path))
+
+
+# ============================================================
+# CELL 2 - TASK 1 - SQL
+# Create/Re-use Assessment Schema and Verify
+# ============================================================
+%sql
+
+CREATE SCHEMA IF NOT EXISTS cat_ltm10877309.exam_ltm10877309;
+
+SHOW SCHEMAS IN cat_ltm10877309;
+
+
+# ============================================================
+# CELL 3 - TASK 2 - PYSPARK
+# Read CSV With Explicit Schema
+# ============================================================
+
+from pyspark.sql.types import *
+from pyspark.sql.functions import *
+
+file_path = "/Volumes/cat_ltm10877309/schema_data_integration_tr/m01_mgd_vol/assessments/ltm10877309/e02/E02_Clinic_Visit_Charges_and_Utilisation.csv"
+
+schema = StructType([
+    StructField("visit_id", StringType(), True),
+    StructField("branch", StringType(), True),
+    StructField("department", StringType(), True),
+    StructField("duration_min", IntegerType(), True),
+    StructField("rate_per_hour", DecimalType(12,2), True),
+    StructField("visit_status", StringType(), True),
+    StructField("visit_date", DateType(), True)
+])
+
+df = (
+    spark.read
+    .option("header", "true")
+    .schema(schema)
+    .csv(file_path)
+)
+
+print("Source Count:", df.count())
+
+df.printSchema()
+
+display(df)
+
+
+# ============================================================
+# CELL 4 - TASK 2 - PYSPARK
+# Keep COMPLETED Visits With duration_min > 0
+# ============================================================
+
+clean_df = df.filter(
+    (col("visit_status") == "COMPLETED") &
+    (col("duration_min") > 0)
+)
+
+print("Retained Visit Count:", clean_df.count())
+
+display(clean_df.limit(3))
+
+
+# ============================================================
+# CELL 5 - TASK 2 - PYSPARK
+# Check NULL rate_per_hour Before Fill
+# ============================================================
+
+null_before = clean_df.filter(
+    col("rate_per_hour").isNull()
+).count()
+
+print("NULL rate_per_hour before fill:", null_before)
+
+
+# ============================================================
+# CELL 6 - TASK 2 - PYSPARK
+# Fill NULL rate_per_hour With 0.00
+# ============================================================
+
+clean_df = clean_df.fillna(
+    {"rate_per_hour": 0.00}
+)
+
+null_after = clean_df.filter(
+    col("rate_per_hour").isNull()
+).count()
+
+print("NULL rate_per_hour before fill:", null_before)
+print("NULL rate_per_hour after fill:", null_after)
+
+display(clean_df.limit(3))
+
+
+# ============================================================
+# CELL 7 - TASK 3 - PYSPARK
+# Create visit_charge and duration_band
+# ============================================================
+
+silver_df = (
+    clean_df
+    .withColumn(
+        "visit_charge",
+        round(
+            col("duration_min") * col("rate_per_hour") / 60,
+            2
+        ).cast("decimal(14,2)")
+    )
+    .withColumn(
+        "duration_band",
+        when(
+            col("duration_min") >= 45,
+            "LONG"
+        ).otherwise("SHORT")
+    )
+)
+
+display(
+    silver_df.select(
+        "visit_id",
+        "duration_min",
+        "rate_per_hour",
+        "visit_charge",
+        "duration_band"
+    )
+)
+
+
+# ============================================================
+# CELL 8 - TASK 3 - PYSPARK
+# Keep 7 Original Columns + 2 Derived Columns
+# ============================================================
+
+silver_df = silver_df.select(
+    "visit_id",
+    "branch",
+    "department",
+    "duration_min",
+    "rate_per_hour",
+    "visit_status",
+    "visit_date",
+    "visit_charge",
+    "duration_band"
+)
+
+display(silver_df)
+
+
+# ============================================================
+# CELL 9 - TASK 3 - PYSPARK
+# Write Managed Delta Table
+# No LOCATION or PATH
+# ============================================================
+
+table_name = "cat_ltm10877309.exam_ltm10877309.clinic_visits_silver"
+
+(
+    silver_df.write
+    .format("delta")
+    .mode("overwrite")
+    .saveAsTable(table_name)
+)
+
+print("Managed Delta table created:")
+print(table_name)
+
+display(spark.table(table_name))
+
+
+# ============================================================
+# CELL 10 - TASK 3 - SQL
+# Validate Count, Charges and Zero Rate Rows
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS visits,
+    SUM(visit_charge) AS total_charges,
+    SUM(
+        CASE
+            WHEN rate_per_hour = 0 THEN 1
+            ELSE 0
+        END
+    ) AS zero_rate_rows
+FROM cat_ltm10877309.exam_ltm10877309.clinic_visits_silver;
+
+
+# Expected:
+# visits = 17
+# total_charges = 5300.00
+# zero_rate_rows = 1
+
+
+# ============================================================
+# CELL 11 - TASK 3 - SQL
+# Verify No NULL rate_per_hour
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS null_rate_rows
+FROM cat_ltm10877309.exam_ltm10877309.clinic_visits_silver
+WHERE rate_per_hour IS NULL;
+
+
+# Expected:
+# null_rate_rows = 0
+
+
+# ============================================================
+# CELL 12 - TASK 3 - SQL
+# Business Rule Validation
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS invalid_rows
+FROM cat_ltm10877309.exam_ltm10877309.clinic_visits_silver
+WHERE visit_status <> 'COMPLETED'
+   OR duration_min <= 0
+   OR rate_per_hour IS NULL
+   OR visit_charge <> ROUND(duration_min * rate_per_hour / 60, 2)
+   OR duration_band <>
+       CASE
+           WHEN duration_min >= 45 THEN 'LONG'
+           ELSE 'SHORT'
+       END;
+
+
+# Expected:
+# invalid_rows = 0
+
+
+# ============================================================
+# CELL 13 - TASK 4 - SQL
+# Department-wise Reporting
+# ============================================================
+%sql
+
+SELECT
+    department,
+    COUNT(*) AS visits,
+    SUM(visit_charge) AS charges,
+    ROUND(AVG(duration_min), 2) AS avg_duration
+FROM cat_ltm10877309.exam_ltm10877309.clinic_visits_silver
+GROUP BY department
+ORDER BY department;
+
+
+# ============================================================
+# CELL 14 - TASK 4 - SQL
+# Count Zero-Charge Visits
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS zero_charge_visits
+FROM cat_ltm10877309.exam_ltm10877309.clinic_visits_silver
+WHERE visit_charge = 0;
+
+
+# ============================================================
+# CELL 15 - TASK 4 - SQL
+# Check Delta Metadata
+# ============================================================
+%sql
+
+DESCRIBE DETAIL
+cat_ltm10877309.exam_ltm10877309.clinic_visits_silver;
+
+
+# ============================================================
+# CELL 16 - TASK 4 - SQL
+# Final Global Validation
+# ============================================================
+%sql
+
+SELECT
+    COUNT(*) AS visits,
+    SUM(visit_charge) AS total_charges
+FROM cat_ltm10877309.exam_ltm10877309.clinic_visits_silver;
+
+
+# ============================================================
+# EXPECTED FINAL RESULTS
+# ============================================================
+
+# visits          = 17
+# total_charges   = 5300.00
+# zero_rate_rows  = 1
+# null_rate_rows  = 0
+# invalid_rows    = 0
+# DESCRIBE DETAIL -> format should be delta
