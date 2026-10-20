@@ -1,7 +1,8 @@
+--cell-0
 %sql
 CREATE SCHEMA IF NOT EXISTS cat_ltm10877309.delta_10877309;
 CREATE VOLUME IF NOT EXISTS cat_ltm10877309.delta_10877309.cdc_mgd_vol;
---
+--cell-0.1
 catalog = "cat_ltm10877309"
 schema = "delta_10877309"
 volume = "cdc_mgd_vol"
