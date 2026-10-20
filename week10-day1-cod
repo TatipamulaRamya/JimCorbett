@@ -1,0 +1,485 @@
+# ============================================================
+# CELL 1: Define Paths and Table Names
+# Language: Python
+# ============================================================
+
+from pyspark.sql import functions as F
+from pyspark.sql.types import *
+
+catalog = "cat_ltm10877309"
+schema = "delta_10877309"
+volume = "cdc_mgd_vol"
+candidate_id = "ltm10877309"
+
+base_path = (
+    f"/Volumes/{catalog}/{schema}/{volume}"
+    f"/assessments/{candidate_id}/cdc01"
+)
+
+snapshot_path = (
+    f"{base_path}/"
+    f"CDC01_Retail_Loyalty_Customer_CDC_snapshot.csv"
+)
+
+changes_path = (
+    f"{base_path}/"
+    f"CDC01_Retail_Loyalty_Customer_CDC_changes.csv"
+)
+
+target_table = (
+    f"{catalog}.{schema}.cdc01_customers_{candidate_id}"
+)
+
+events_table = (
+    f"{catalog}.{schema}.cdc01_events_{candidate_id}"
+)
+
+print("Base Path:", base_path)
+print("Snapshot Path:", snapshot_path)
+print("Changes Path:", changes_path)
+print("Target Table:", target_table)
+print("Events Table:", events_table)
+
+
+# Expected paths:
+# /Volumes/cat_ltm10877309/delta_10877309/cdc_mgd_vol/assessments/ltm10877309/cdc01/CDC01_Retail_Loyalty_Customer_CDC_snapshot.csv
+#
+# /Volumes/cat_ltm10877309/delta_10877309/cdc_mgd_vol/assessments/ltm10877309/cdc01/CDC01_Retail_Loyalty_Customer_CDC_changes.csv
+
+
+# ============================================================
+# CELL 2: Define Schemas
+# Language: Python
+# ============================================================
+
+snapshot_schema = StructType([
+    StructField("customer_id", StringType(), True),
+    StructField("customer_name", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("loyalty_tier", StringType(), True),
+    StructField("points_balance", IntegerType(), True),
+    StructField("is_active", BooleanType(), True),
+    StructField("last_updated", TimestampType(), True)
+])
+
+changes_schema = StructType([
+    StructField("event_id", StringType(), True),
+    StructField("customer_id", StringType(), True),
+    StructField("customer_name", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("loyalty_tier", StringType(), True),
+    StructField("points_balance", IntegerType(), True),
+    StructField("is_active", BooleanType(), True),
+    StructField("last_updated", TimestampType(), True),
+    StructField("operation", StringType(), True)
+])
+
+
+# ============================================================
+# CELL 3: Read CSV Files
+# Language: Python
+# ============================================================
+
+snapshot_df = (
+    spark.read
+    .format("csv")
+    .option("header", "true")
+    .option("timestampFormat", "yyyy-MM-dd HH:mm:ss")
+    .schema(snapshot_schema)
+    .load(snapshot_path)
+)
+
+changes_df = (
+    spark.read
+    .format("csv")
+    .option("header", "true")
+    .option("timestampFormat", "yyyy-MM-dd HH:mm:ss")
+    .schema(changes_schema)
+    .load(changes_path)
+)
+
+print("Snapshot data:")
+display(snapshot_df)
+
+print("CDC changes data:")
+display(changes_df)
+
+
+# ============================================================
+# CELL 4: Profile Source Data
+# Language: Python
+# ============================================================
+
+snapshot_count = snapshot_df.count()
+
+snapshot_null_points = (
+    snapshot_df
+    .filter(F.col("points_balance").isNull())
+    .count()
+)
+
+changes_count = changes_df.count()
+
+print("snapshot_count =", snapshot_count)
+print("snapshot_null_points =", snapshot_null_points)
+print("changes_count =", changes_count)
+
+display(
+    changes_df
+    .groupBy("operation")
+    .count()
+    .orderBy("operation")
+)
+
+
+# Expected:
+# snapshot_count = 12
+# snapshot_null_points = 1
+# changes_count = 5
+#
+# D = 1
+# I = 2
+# U = 2
+
+
+# ============================================================
+# CELL 5: Clean Snapshot and Create Initial Delta Table
+# Language: Python
+# IMPORTANT: Do not rerun this cell after executing the MERGE.
+# ============================================================
+
+snapshot_clean_df = (
+    snapshot_df
+    .withColumn(
+        "points_balance",
+        F.coalesce(
+            F.col("points_balance"),
+            F.lit(0).cast("int")
+        )
+    )
+)
+
+(
+    snapshot_clean_df.write
+    .format("delta")
+    .mode("overwrite")
+    .saveAsTable(target_table)
+)
+
+print("Initial managed Delta table created:")
+print(target_table)
+
+
+# ============================================================
+# CELL 6: Validate Initial Table
+# Language: SQL
+# ============================================================
+
+SELECT
+    COUNT(*) AS records,
+    COUNT(DISTINCT customer_id) AS unique_customers,
+    SUM(
+        CASE
+            WHEN points_balance IS NULL THEN 1
+            ELSE 0
+        END
+    ) AS null_points,
+    SUM(points_balance) AS total_points
+FROM cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309;
+
+
+# Expected:
+# records = 12
+# unique_customers = 12
+# null_points = 0
+# total_points = 2560
+
+
+# ============================================================
+# CELL 7: Check Event IDs and Create CDC Staging Table
+# Language: Python
+# ============================================================
+
+duplicate_event_ids_df = (
+    changes_df
+    .groupBy("event_id")
+    .count()
+    .filter(F.col("count") > 1)
+)
+
+display(duplicate_event_ids_df)
+
+(
+    changes_df.write
+    .format("delta")
+    .mode("overwrite")
+    .saveAsTable(events_table)
+)
+
+print("CDC staging table created:")
+print(events_table)
+
+
+# Duplicate-event query should return no rows.
+
+
+# ============================================================
+# CELL 8: Validate Staged Events
+# Language: SQL
+# ============================================================
+
+SELECT
+    operation,
+    COUNT(*) AS event_count
+FROM cat_ltm10877309.delta_10877309.cdc01_events_ltm10877309
+GROUP BY operation
+ORDER BY operation;
+
+
+# Expected:
+# D = 1
+# I = 2
+# U = 2
+
+
+# ============================================================
+# CELL 9: Execute CDC MERGE - First Execution
+# Language: SQL
+# ============================================================
+
+MERGE INTO cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309 AS target
+
+USING cat_ltm10877309.delta_10877309.cdc01_events_ltm10877309 AS source
+
+ON target.customer_id = source.customer_id
+
+WHEN MATCHED AND source.operation = 'D' THEN
+    DELETE
+
+WHEN MATCHED AND source.operation = 'U' THEN
+    UPDATE SET
+        target.customer_name = source.customer_name,
+        target.city = source.city,
+        target.loyalty_tier = source.loyalty_tier,
+        target.points_balance = source.points_balance,
+        target.is_active = source.is_active,
+        target.last_updated = source.last_updated
+
+WHEN NOT MATCHED AND source.operation = 'I' THEN
+    INSERT (
+        customer_id,
+        customer_name,
+        city,
+        loyalty_tier,
+        points_balance,
+        is_active,
+        last_updated
+    )
+    VALUES (
+        source.customer_id,
+        source.customer_name,
+        source.city,
+        source.loyalty_tier,
+        source.points_balance,
+        source.is_active,
+        source.last_updated
+    );
+
+
+# ============================================================
+# CELL 10: Verify Changed Customers
+# Language: SQL
+# ============================================================
+
+SELECT
+    customer_id,
+    customer_name,
+    city,
+    loyalty_tier,
+    points_balance,
+    is_active,
+    last_updated
+FROM cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309
+WHERE customer_id IN (
+    'C002',
+    'C004',
+    'C006',
+    'C013',
+    'C014'
+)
+ORDER BY customer_id;
+
+
+# Expected:
+# C002 = PLATINUM, 520 points
+# C006 = SILVER, 190 points
+# C013 = BRONZE, 70 points
+# C014 = SILVER, 110 points
+# C004 = Deleted, so it should not appear
+
+
+# ============================================================
+# CELL 11: Execute CDC MERGE - Second Execution
+# Language: SQL
+# Do not rerun Cell 5 or Cell 7 before this cell.
+# ============================================================
+
+MERGE INTO cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309 AS target
+
+USING cat_ltm10877309.delta_10877309.cdc01_events_ltm10877309 AS source
+
+ON target.customer_id = source.customer_id
+
+WHEN MATCHED AND source.operation = 'D' THEN
+    DELETE
+
+WHEN MATCHED AND source.operation = 'U' THEN
+    UPDATE SET
+        target.customer_name = source.customer_name,
+        target.city = source.city,
+        target.loyalty_tier = source.loyalty_tier,
+        target.points_balance = source.points_balance,
+        target.is_active = source.is_active,
+        target.last_updated = source.last_updated
+
+WHEN NOT MATCHED AND source.operation = 'I' THEN
+    INSERT (
+        customer_id,
+        customer_name,
+        city,
+        loyalty_tier,
+        points_balance,
+        is_active,
+        last_updated
+    )
+    VALUES (
+        source.customer_id,
+        source.customer_name,
+        source.city,
+        source.loyalty_tier,
+        source.points_balance,
+        source.is_active,
+        source.last_updated
+    );
+
+
+# ============================================================
+# CELL 12: Verify Final Metrics
+# Language: SQL
+# ============================================================
+
+SELECT
+    COUNT(*) AS records,
+    COUNT(DISTINCT customer_id) AS unique_customers,
+    SUM(
+        CASE
+            WHEN points_balance IS NULL THEN 1
+            ELSE 0
+        END
+    ) AS null_points,
+    SUM(points_balance) AS total_points
+FROM cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309;
+
+
+# Expected:
+# records = 13
+# unique_customers = 13
+# null_points = 0
+# total_points = 3080
+
+
+# ============================================================
+# CELL 13: Verify Deleted Customer
+# Language: SQL
+# ============================================================
+
+SELECT
+    COUNT(*) AS deleted_key_remaining
+FROM cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309
+WHERE customer_id = 'C004';
+
+
+# Expected:
+# deleted_key_remaining = 0
+
+
+# ============================================================
+# CELL 14: Verify Loyalty-Tier Totals
+# Language: SQL
+# ============================================================
+
+SELECT
+    loyalty_tier,
+    COUNT(*) AS customers,
+    SUM(points_balance) AS total_points
+FROM cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309
+GROUP BY loyalty_tier
+ORDER BY loyalty_tier;
+
+
+# Expected:
+# BRONZE   = 3 customers, 140 points
+# GOLD     = 3 customers, 1550 points
+# PLATINUM = 1 customer, 520 points
+# SILVER   = 6 customers, 870 points
+
+
+# ============================================================
+# CELL 15: Verify Delta Transaction History
+# Language: SQL
+# ============================================================
+
+DESCRIBE HISTORY
+cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309;
+
+
+# Verify:
+# 1. Initial WRITE operation
+# 2. First MERGE operation
+# 3. Second MERGE operation
+
+
+# ============================================================
+# CELL 16: Verify Delta Table Details
+# Language: SQL
+# ============================================================
+
+DESCRIBE DETAIL
+cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309;
+
+
+# Confirm that the table format is Delta.
+
+
+# ============================================================
+# CELL 17: Verify Table Schema and Metadata
+# Language: SQL
+# ============================================================
+
+DESCRIBE TABLE EXTENDED
+cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309;
+
+
+# Confirm:
+# 1. Table uses Delta format
+# 2. Target has seven columns
+# 3. points_balance is INT
+# 4. is_active is BOOLEAN
+# 5. last_updated is TIMESTAMP
+
+
+# ============================================================
+# CELL 18: Optional Final Customer Data Check
+# Language: SQL
+# ============================================================
+
+SELECT
+    customer_id,
+    customer_name,
+    city,
+    loyalty_tier,
+    points_balance,
+    is_active,
+    last_updated
+FROM cat_ltm10877309.delta_10877309.cdc01_customers_ltm10877309
+ORDER BY customer_id;
