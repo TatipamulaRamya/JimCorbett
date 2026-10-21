@@ -1,3 +1,4 @@
+--CELL-1
 CREATE CATALOG IF NOT EXISTS fashion_catalog;
 
 USE CATALOG fashion_catalog;
@@ -5,6 +6,7 @@ USE CATALOG fashion_catalog;
 CREATE SCHEMA IF NOT EXISTS retail;
 
 USE SCHEMA retail;
+--CELL-2
 file_path = "/Volumes/fashion_catalog/retail/your_volume/apparel_sales.csv"
 
 df = spark.read.format("csv") \
@@ -12,24 +14,29 @@ df = spark.read.format("csv") \
     .option("inferSchema", "true") \
     .option("mode", "PERMISSIVE") \
     .load(file_path)
-
 display(df)
+
+--CELL-3
 df.printSchema()
-
 print(df.columns)
-
 display(df.limit(10))
+
+--CELL-4
 df.write.format("delta") \
     .mode("overwrite") \
     .option("overwriteSchema", "true") \
     .saveAsTable("fashion_catalog.retail.apparel_sales")
+
+--CELL-5
 SELECT *
 FROM fashion_catalog.retail.apparel_sales;
 
+--CELL-6
 SELECT
     ROUND(SUM(quantity_sold * selling_price), 2) AS total_sales
 FROM fashion_catalog.retail.apparel_sales;
 
+--CELL-7
 SELECT
     category,
     ROUND(SUM(quantity_sold * selling_price), 2) AS total_revenue
@@ -37,6 +44,7 @@ FROM fashion_catalog.retail.apparel_sales
 GROUP BY category
 ORDER BY total_revenue DESC;
 
+--CELL-8
 SELECT
     brand,
     ROUND(SUM(quantity_sold * selling_price), 2) AS total_revenue
@@ -45,6 +53,7 @@ GROUP BY brand
 ORDER BY total_revenue DESC
 LIMIT 10;
 
+--CELL-9
 SELECT
     city,
     ROUND(SUM(quantity_sold * selling_price), 2) AS total_revenue
@@ -52,10 +61,12 @@ FROM fashion_catalog.retail.apparel_sales
 GROUP BY city
 ORDER BY total_revenue DESC;
 
+--CELL-10
 SELECT
     ROUND(AVG(selling_price), 2) AS average_selling_price
 FROM fashion_catalog.retail.apparel_sales;
 
+--CELL-11
 SELECT
     product_name,
     ROUND(SUM(quantity_sold * selling_price), 2) AS total_revenue
@@ -64,6 +75,7 @@ GROUP BY product_name
 ORDER BY total_revenue DESC
 LIMIT 10;
 
+--CELL-12
 SELECT
     CAST(sale_date AS DATE) AS sales_date,
     ROUND(SUM(quantity_sold * selling_price), 2) AS daily_revenue
@@ -71,6 +83,7 @@ FROM fashion_catalog.retail.apparel_sales
 GROUP BY CAST(sale_date AS DATE)
 ORDER BY sales_date;
 
+--CELL-13
 SELECT
     city,
     category,
@@ -79,6 +92,7 @@ FROM fashion_catalog.retail.apparel_sales
 GROUP BY city, category
 ORDER BY city, total_revenue DESC;
 
+--CELL-14
 SELECT
     category,
     SUM(quantity_sold) AS total_quantity
@@ -86,6 +100,7 @@ FROM fashion_catalog.retail.apparel_sales
 GROUP BY category
 ORDER BY total_quantity DESC;
 
+--CELL-15
 SELECT
     brand,
     COUNT(*) AS number_of_records,
@@ -97,7 +112,7 @@ GROUP BY brand
 ORDER BY total_revenue DESC;
 
 
-
+--DASHBOARD PROMPT
 Fashion Sales Performance Dashboard
 
 Use the table fashion_catalog.retail.apparel_sales to create a dashboard named Fashion Sales Performance Dashboard.
