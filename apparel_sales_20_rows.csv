@@ -1,0 +1,21 @@
+order_id,product_name,category,brand,city,order_date,quantity,selling_price
+ORD0001,Casual Shirt,Men's Wear,UrbanStyle,Hyderabad,2026-10-01,2,1299.0
+ORD0002,Dress,Women's Wear,FashionHub,Mumbai,2026-10-01,1,2499.0
+ORD0003,Sneakers,Footwear,TrendyWear,Bengaluru,2026-10-02,1,3499.0
+ORD0004,Handbag,Accessories,ClassicCo,Chennai,2026-10-02,2,999.0
+ORD0005,Kids T-Shirt,Kids Wear,StyleStreet,Pune,2026-10-03,3,499.0
+ORD0006,Jeans,Men's Wear,DenimWorks,Delhi,2026-10-03,1,1899.0
+ORD0007,Kurti,Women's Wear,UrbanStyle,Kolkata,2026-10-04,2,1199.0
+ORD0008,Formal Shoes,Footwear,ClassicCo,Hyderabad,2026-10-04,1,2799.0
+ORD0009,Wallet,Accessories,FashionHub,Mumbai,2026-10-05,3,599.0
+ORD0010,Kids Dress,Kids Wear,TrendyWear,Jaipur,2026-10-05,2,899.0
+ORD0011,T-Shirt,Men's Wear,StyleStreet,Chennai,2026-10-06,4,699.0
+ORD0012,Top,Women's Wear,DenimWorks,Pune,2026-10-06,2,999.0
+ORD0013,Sandals,Footwear,UrbanStyle,Delhi,2026-10-07,2,1499.0
+ORD0014,Scarf,Accessories,TrendyWear,Bengaluru,2026-10-07,1,399.0
+ORD0015,Shorts,Kids Wear,ClassicCo,Kolkata,2026-10-08,3,599.0
+ORD0016,Jacket,Men's Wear,FashionHub,Jaipur,2026-10-08,1,2999.0
+ORD0017,Skirt,Women's Wear,StyleStreet,Hyderabad,2026-10-09,2,1599.0
+ORD0018,Boots,Footwear,DenimWorks,Mumbai,2026-10-09,1,4299.0
+ORD0019,Sunglasses,Accessories,UrbanStyle,Pune,2026-10-10,2,799.0
+ORD0020,School Shoes,Kids Wear,FashionHub,Delhi,2026-10-10,1,1199.0
