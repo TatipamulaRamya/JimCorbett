@@ -95,3 +95,41 @@ SELECT
 FROM fashion_catalog.retail.apparel_sales
 GROUP BY brand
 ORDER BY total_revenue DESC;
+
+
+
+Fashion Sales Performance Dashboard
+
+Use the table fashion_catalog.retail.apparel_sales to create a dashboard named Fashion Sales Performance Dashboard.
+
+Analyze the fashion and apparel retail sales data and create these 10 visualizations:
+
+1. KPI Cards: Show total sales revenue, total quantity sold, and average selling price.
+2. Bar Chart — Sales by Category: Display total revenue for each product category, sorted from highest to lowest.
+3. Horizontal Bar Chart — Top 10 Products by Revenue: Show the 10 products generating the highest total revenue.
+4. Pie Chart — Revenue Share by Brand: Show each brand’s percentage contribution to total revenue.
+5. Line Chart — Daily Sales Trend: Display daily revenue over time, ordered by date.
+6. Stacked Bar Chart — Category-wise Sales by City: Compare revenue by category across different cities.
+7. Donut Chart — Quantity Sold by Category: Display total quantity sold for each category.
+8. Column Chart — Sales by City: Compare total revenue across cities in descending order.
+9. Bar Chart — Brand Performance: Compare total revenue for each brand, sorted from highest to lowest.
+10. Table — Sales Summary: Display city, category, brand, total quantity sold, and total revenue.
+
+Calculation rules
+
+* Total revenue = quantity sold multiplied by selling price.
+* Total quantity sold = sum of the quantity sold column.
+* Average selling price = average of the selling price column.
+* Revenue share by brand = brand revenue divided by overall revenue, multiplied by 100.
+* Daily sales trend = total revenue grouped by sales date.
+
+Requirements
+
+* Use the actual column names available in the table.
+* Use the correct aggregation for each metric.
+* Sort rankings in descending order.
+* Use readable titles and appropriate currency and percentage formats.
+* Use the most suitable visualization type for each request.
+* If a requested column does not exist, identify the missing column rather than inventing data.
+* Arrange the visualizations clearly in the dashboard.
+* Save the dashboard with the title Fashion Sales Performance Dashboard.
