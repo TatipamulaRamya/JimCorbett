@@ -1,0 +1,21 @@
+id,customer_name,city,customer_segment
+C001,Aarav Sharma,Hyderabad,Regular
+C002,Diya Reddy,Mumbai,Premium
+C003,Arjun Patel,Bengaluru,Regular
+C004,Ananya Rao,Chennai,Premium
+C005,Ishaan Gupta,Pune,New
+C006,Meera Nair,Delhi,Regular
+C007,Kabir Singh,Kolkata,Premium
+C008,Saanvi Iyer,Jaipur,New
+C009,Vivaan Das,Mumbai,Regular
+C010,Aadhya Khan,Hyderabad,Premium
+C011,Reyansh Bose,Pune,New
+C012,Myra Joshi,Chennai,Regular
+C013,Advik Menon,Delhi,Premium
+C014,Kiara Verma,Bengaluru,Regular
+C015,Atharv Roy,Kolkata,New
+C016,Sara Thomas,Jaipur,Premium
+C017,Dhruv Kapoor,Hyderabad,Regular
+C018,Pari Shah,Mumbai,New
+C019,Rohan Kulkarni,Pune,Regular
+C020,Tara Pillai,Chennai,Premium
